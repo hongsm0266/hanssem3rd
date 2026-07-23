@@ -6,7 +6,7 @@ import re
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS (컬럼 제목 파란색 강조 + 헤더 편집 아이콘 완전 제거) ---
+# --- 커스텀 CSS (표 전체 헤더 색상, 아이콘 완전삭제, 가짜 텍스트 주입 등 초강력 적용) ---
 st.markdown("""
 <style>
     /* 메인 버튼 스타일 */
@@ -24,16 +24,22 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* 접속자 박스 스타일 */
+    /* 접속자 박스 스타일 및 텍스트 초강조 */
     .user-info-box {
         background-color: #f1f5f9;
-        border: 1px solid #cbd5e1;
-        padding: 10px 16px;
+        border: 2px solid #0284c7; /* 테두리 파란색 강조 */
+        padding: 12px 16px;
         border-radius: 8px;
-        font-size: 16px;
-        font-weight: bold;
-        color: #0f172a;
         text-align: right;
+    }
+    .user-info-name {
+        font-size: 20px !important; /* 글씨 엄청 크게 */
+        font-weight: 900 !important; /* 엄청 굵게 */
+        color: #0369a1 !important; /* 진한 파란색 */
+    }
+    .user-info-sub {
+        font-size: 13px !important;
+        color: #64748b !important;
     }
     
     /* 요약 지표 카드 스타일 */
@@ -61,25 +67,41 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* [핵심 1] 표 컬럼 제목(헤더) 진한 파란색 배경 + 흰색 글씨 강한 강조 */
-    div[data-testid="stDataFrame"] div[role="columnheader"],
-    div[data-testid="stDataFrame"] th {
+    /* ========================================= */
+    /* [표(Data Editor) 초강력 CSS 오버라이딩 영역] */
+    /* ========================================= */
+
+    /* 1. 표 헤더(컬럼명) 배경색 진한 파랑 & 글자 하양 강제 설정 */
+    th[data-testid="stDataFrameHeaderCell"] {
         background-color: #0056b3 !important;
+    }
+    th[data-testid="stDataFrameHeaderCell"] span {
         color: #ffffff !important;
         font-weight: 800 !important;
         font-size: 15px !important;
     }
 
-    /* [핵심 2] 컬럼 제목 옆 연필/달력/메모지/체크박스 등 모든 시스템 아이콘 완전 삭제 */
-    div[data-testid="stDataFrame"] div[role="columnheader"] svg,
-    div[data-testid="stDataFrame"] th svg,
-    div[data-testid="stDataFrame"] [data-testid="stHeaderIcon"],
-    div[data-testid="stDataFrame"] span[class*="icon"] {
+    /* 2. 컬럼 제목 옆의 연필, 달력, 텍스트 아이콘 등 모든 svg 아이콘 절대 투명화 및 숨김 */
+    th[data-testid="stDataFrameHeaderCell"] svg {
         display: none !important;
         visibility: hidden !important;
-        width: 0px !important;
-        height: 0px !important;
+        opacity: 0 !important;
     }
+    
+    /* 3. 맨 앞 빈 공간(행 삭제 체크박스 헤더)에 '삭제체크'라는 글자 강제 주입 */
+    /* Streamlit은 맨 앞 컬럼 헤더의 텍스트가 없으므로 가짜(after) 콘텐츠를 주입합니다. */
+    th.blank[data-testid="stDataFrameHeaderCell"]:first-child::after,
+    th[data-testid="stDataFrameHeaderCell"]:first-child:empty::after,
+    table thead tr th:first-child::after {
+        content: "삭제체크" !important;
+        color: #ffffff !important;
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        display: block !important;
+        text-align: center !important;
+        margin-top: 2px !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -267,7 +289,6 @@ def parse_raw_text(text, master_mode):
             cust_display = f"👤[본인] {cust_name}" if is_self else cust_name
             
             records.append({
-                '선택/삭제': False,
                 '상담일': pd.to_datetime(date_m.group(1)).date(),
                 '상담번호': no_m.group(1),
                 'HC_ID': parsed_id,          
@@ -290,7 +311,7 @@ def parse_raw_text(text, master_mode):
 # 데이터 초기화
 if 'data' not in st.session_state:
     st.session_state['data'] = pd.DataFrame(columns=[
-        '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
+        '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ])
@@ -325,9 +346,10 @@ with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
     with sub_col1:
         if is_master:
-            st.markdown(f"<div class='user-info-box'>접속자: {my_name}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class='user-info-box'>{my_name} ({my_dealer})<br><span style='font-size:12px;color:#64748b;'>사번: {my_id}</span></div>", unsafe_allow_html=True)
+            # 로그인 사용자명 초강조 렌더링
+            st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👤 {my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
         if st.button("로그아웃"):
             st.session_state['logged_in'] = False
@@ -432,12 +454,12 @@ if filter_tab == "본인 작성 견적만 보기":
 
 if is_master:
     column_order = [
-        "선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 else:
     column_order = [
-        "선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 
@@ -446,7 +468,6 @@ if not display_df.empty:
         display_df,
         column_order=column_order,
         column_config={
-            "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"),
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small"),
             "고객명": st.column_config.TextColumn("고객명", width="medium"),
@@ -464,7 +485,7 @@ if not display_df.empty:
         },
         disabled=[],
         num_rows="dynamic",
-        hide_index=True,
+        hide_index=False, # 숨기지 않고 삭제(index) 체크박스 컬럼 노출 유지
         use_container_width=True,
         height=550
     )
