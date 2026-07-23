@@ -178,7 +178,6 @@ my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
 # --- [필수 안전장치] 데이터 타입 강제 고정 함수 ---
-# 에러(StreamlitAPIException: type compatibilities)를 막기 위한 핵심 방어 코드입니다.
 def clean_and_enforce_types(df):
     # 1. 과거 CSV 로드 시 누락된 컬럼 복구
     if '선택/삭제' not in df.columns:
@@ -201,6 +200,14 @@ def clean_and_enforce_types(df):
     # 4. 금액은 숫자로 강제 변환
     if '견적금액' in df.columns:
         df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
+
+    # 5. [핵심] 사번, 상담번호 등 문자열 강제 고정 (0이 날아가는 현상 완벽 차단)
+    if 'HC_ID' in df.columns:
+        df['HC_ID'] = df['HC_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(8)
+    if '상담번호' in df.columns:
+        df['상담번호'] = df['상담번호'].astype(str).str.replace(r'\.0$', '', regex=True)
+    if '연락처' in df.columns:
+        df['연락처'] = df['연락처'].astype(str).replace('nan', '')
         
     return df
 
@@ -209,6 +216,7 @@ def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
     in_prod_area = False
+    
     for l in lines:
         if l in ["상담 상품", "상품정보"]:
             in_prod_area = True
@@ -269,6 +277,7 @@ def parse_product_summary(block):
             cat_label = f"자녀방 - {sub}"
         else:
             cat_label = "기타(홈퍼니싱)"
+
         items_summary.append(cat_label)
 
     if items_summary:
@@ -320,7 +329,7 @@ def parse_raw_text(text, master_mode):
             
             records.append({
                 '선택/삭제': False,
-                '상담일': pd.to_datetime(date_m.group(1)),
+                '상담일': pd.to_datetime(date_m.group(1)).date(),
                 '상담번호': no_m.group(1),
                 'HC_ID': parsed_id,          
                 'HC명': parsed_name,
@@ -405,8 +414,8 @@ with exp_col2:
             uploaded_file = st.file_uploader("어제 저장한 CSV 복구", type=['csv'], label_visibility="collapsed")
             if uploaded_file is not None:
                 if st.button("불러오기"):
-                    df_loaded = pd.read_csv(uploaded_file)
-                    # 파일 불러올 때 안전장치 바로 적용
+                    # [핵심] 불러올 때 사번, 연락처에서 0이 빠지는 현상을 원천 방지
+                    df_loaded = pd.read_csv(uploaded_file, dtype={'HC_ID': str, '상담번호': str, '연락처': str})
                     st.session_state['data'] = clean_and_enforce_types(df_loaded)
                     st.session_state['success_msg'] = "성공적으로 불러왔습니다!"
                     st.rerun()
@@ -438,6 +447,7 @@ if is_master:
     else:
         my_df = st.session_state['data'].copy()
 else:
+    # 로그인한 본인 사번(my_id)과 완벽히 일치하는 데이터만 필터링!
     my_df = st.session_state['data'][st.session_state['data']['HC_ID'] == my_id].copy()
 
 total_quotes = len(my_df)
