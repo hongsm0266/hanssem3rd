@@ -6,27 +6,48 @@ import re
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS (좌우 여백 100% 제거 + UI 디자인) ---
+# 한샘 공식 고화질 CI 이미지 URL (SVG 기반 초고화질)
+HANSSEM_CI_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Hanssem_logo.svg/512px-Hanssem_logo.svg.png"
+
+# --- 커스텀 CSS (중앙 로그인 카드 & 전체 레이아웃 100% 꽉 채우기) ---
 st.markdown("""
 <style>
-    /* [핵심] 메인 컨테이너 좌우 여백 극소화 (화면 전체 꽉 채우기) */
+    /* 메인 컨테이너 좌우 여백 100% 확장 */
     .main .block-container,
     [data-testid="stMainBlockContainer"],
     [data-testid="stAppViewBlockContainer"] {
         max-width: 100% !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
         padding-top: 1.5rem !important;
+    }
+
+    /* 로그인 카드 모듈 세련된 디자인 */
+    .login-card-header {
+        text-align: center;
+        padding: 20px 0 10px 0;
+    }
+    .login-card-title {
+        color: #0f172a;
+        font-size: 22px !important;
+        font-weight: 800 !important;
+        margin-top: 15px;
+        margin-bottom: 5px;
+    }
+    .login-card-sub {
+        color: #64748b;
+        font-size: 13px;
+        margin-bottom: 20px;
     }
 
     /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
-        font-size: 15px !important;
+        font-size: 16px !important;
         font-weight: bold !important;
         border-radius: 6px !important;
-        padding: 8px 20px !important;
+        padding: 10px 20px !important;
         border: none !important;
     }
     div.stButton > button:first-child:hover {
@@ -34,7 +55,7 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* 접속자 박스 스타일 */
+    /* 접속자 정보 박스 */
     .user-info-box {
         background-color: #f1f5f9;
         border: 2px solid #0284c7;
@@ -43,12 +64,12 @@ st.markdown("""
         text-align: right;
     }
     .user-info-name {
-        font-size: 20px !important;
+        font-size: 18px !important;
         font-weight: 900 !important;
         color: #0369a1 !important;
     }
     .user-info-sub {
-        font-size: 13px !important;
+        font-size: 12px !important;
         color: #64748b !important;
     }
     
@@ -71,7 +92,7 @@ st.markdown("""
         color: #0284c7 !important;
     }
 
-    /* 표 위 헤더 강조 바 스타일 */
+    /* 표 위 헤더 강조 바 */
     .table-header-banner {
         background-color: #0056b3;
         color: white;
@@ -105,20 +126,34 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
+# --- 2. 로그인 및 세션 상태 초기화 ---
 if 'logged_in' not in st.session_state:
     st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
 
+# === [중앙 정렬 로그인 화면] ===
 if not st.session_state['logged_in']:
-    st.title("🔒 충청호남팀 견적관리 로그인")
+    st.write("")
+    st.write("")
     
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        login_id = st.text_input("아이디 (사번)")
-        login_pw = st.text_input("비밀번호", type="password")
+    # 3개 컬럼을 만들어 중앙(col2)에 로그인 폼 배치
+    col_left, col_center, col_right = st.columns([1, 1.1, 1])
+    
+    with col_center:
+        st.markdown(f"""
+        <div class="login-card-header">
+            <img src="{HANSSEM_CI_URL}" alt="HANSSEM Logo" style="width: 220px; max-width: 80%; height: auto;">
+            <div class="login-card-title">충청호남팀 견적관리 로그인</div>
+            <div class="login-card-sub">견적 등록 및 TM 진도율 실시간 통합 시스템</div>
+        </div>
+        """, unsafe_allow_html=True)
         
+        login_id = st.text_input("아이디 (사번)", placeholder="사번 8자리를 입력하세요")
+        login_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호를 입력하세요")
+        
+        st.write("")
         if st.button("로그인", use_container_width=True):
             if login_id == "0000" and login_pw == "0000":
                 st.session_state['logged_in'] = True
@@ -141,12 +176,14 @@ if not st.session_state['logged_in']:
                 st.error("아이디와 비밀번호가 일치하지 않습니다.")
     st.stop()
 
+# === 로그인 성공 후 메인 화면 ===
 today = date.today()
 my_id = st.session_state['hc_id']
 my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
+# --- 3. 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
@@ -309,11 +346,16 @@ def add_quotes_callback():
         
         st.session_state['raw_input_area'] = ""
 
-col_head_left, col_head_right = st.columns([2, 1])
+# --- 5. 대시보드 최상단 레이아웃 (CI 로고 연동) ---
+col_head_left, col_head_right = st.columns([2.5, 1])
 
 with col_head_left:
-    st.title("충청호남팀 견적 관리 및 TM 진도")
-    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
+    head_sub1, head_sub2 = st.columns([1, 4])
+    with head_sub1:
+        st.image(HANSSEM_CI_URL, width=150)
+    with head_sub2:
+        st.title("충청호남팀 견적 관리 및 TM 진도")
+        st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
 
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
@@ -329,6 +371,7 @@ with col_head_right:
 
 st.markdown("---")
 
+# --- 6. 상단 유틸리티 ---
 exp_col1, exp_col2 = st.columns([2, 1])
 
 with exp_col1:
