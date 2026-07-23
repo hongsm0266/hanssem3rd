@@ -6,10 +6,9 @@ import re
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS (지표 카드 색상 강조, 버튼 및 표 가독성 극대화) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
-    /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -23,8 +22,6 @@ st.markdown("""
         background-color: #003d80 !important;
         color: #ffffff !important;
     }
-    
-    /* 접속자 박스 스타일 */
     .user-info-box {
         background-color: #f1f5f9;
         border: 1px solid #cbd5e1;
@@ -35,29 +32,25 @@ st.markdown("""
         color: #0f172a;
         text-align: right;
     }
-
-    /* 실시간 요약 지표 메트릭 카드 색상 스타일 */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
         border-radius: 10px !important;
-        padding: 12px 16px !important;
+        padding: 10px 14px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
     }
     [data-testid="stMetricLabel"] {
-        font-size: 14px !important;
+        font-size: 13px !important;
         font-weight: 700 !important;
         color: #0369a1 !important;
     }
     [data-testid="stMetricValue"] {
-        font-size: 22px !important;
+        font-size: 20px !important;
         font-weight: 800 !important;
         color: #0284c7 !important;
     }
-
-    /* 데이터 표 가독성 향상 CSS */
     div[data-testid="stDataFrame"] {
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 600 !important;
     }
 </style>
@@ -210,7 +203,7 @@ def parse_product_summary(block):
     else:
         return "기타(홈퍼니싱)"
 
-# --- 4. 마법의 텍스트 추출 함수 (본인사번견적 처리 반영) ---
+# --- 4. 마법의 텍스트 추출 함수 ---
 def parse_raw_text(text, master_mode):
     records = []
     skipped_count = 0
@@ -244,11 +237,8 @@ def parse_raw_text(text, master_mode):
             
             cust_name = cust_m.group(1) if cust_m else ""
             
-            # [신규] 영업사원 이름과 고객명이 동일한 경우 "(본인사번견적)" 표기 추가
-            if cust_name and parsed_name and cust_name.strip() == parsed_name.strip():
-                cust_display = f"{cust_name} (본인사번견적)"
-            else:
-                cust_display = cust_name
+            # 본인 견적 여부 판별 (True/False 저장용)
+            is_self_quote = bool(cust_name and parsed_name and cust_name.strip() == parsed_name.strip())
             
             records.append({
                 '상담일': pd.to_datetime(date_m.group(1)).date(),
@@ -256,7 +246,7 @@ def parse_raw_text(text, master_mode):
                 'HC_ID': parsed_id,          
                 'HC명': parsed_name,
                 '대리점명': real_dealer,
-                '고객명': cust_display,
+                '고객명': cust_name,
                 '연락처': phone_m.group(1) if phone_m else "",
                 '주소': addr_m.group(1) if addr_m else "",
                 '상품(대분류)': category_summary,
@@ -265,7 +255,8 @@ def parse_raw_text(text, master_mode):
                 '1차_TM': False, '1차_TM_일자': None,
                 '2차_TM': False, '2차_TM_일자': None,
                 '3차_TM': False, '3차_TM_일자': None,
-                '계약완료': False, '상담메모': ''
+                '계약완료': False, '상담메모': '',
+                'is_self': is_self_quote
             })
     return pd.DataFrame(records), skipped_count
 
@@ -274,7 +265,7 @@ if 'data' not in st.session_state:
     st.session_state['data'] = pd.DataFrame(columns=[
         '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
-        '3차_TM', '3차_TM_일자', '계약완료', '상담메모'
+        '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ])
 
 # 견적 추가 콜백
@@ -317,7 +308,7 @@ with col_head_right:
 
 st.markdown("---")
 
-# --- 6. 상단 유틸리티 (견적 추가 + 백업/복구 및 마스터 필터) ---
+# --- 6. 상단 유틸리티 ---
 exp_col1, exp_col2 = st.columns([2, 1])
 
 with exp_col1:
@@ -390,7 +381,7 @@ if total_quotes > 0:
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-# --- 8. 실시간 요약 지표 (시각적 스카이블루 강조) ---
+# --- 8. 실시간 요약 지표 ---
 st.subheader("📈 실시간 요약 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
@@ -403,7 +394,7 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 화면 전체 꽉 차는 견적 및 TM 목록 표 ---
+# --- 9. 화면 밀착 조율 및 본인 견적 행(Row) 색상 스타일링 ---
 st.subheader(f"📋 견적 및 TM 목록")
 
 if is_master:
@@ -418,22 +409,37 @@ else:
     ]
 
 if not my_df.empty:
+    # [스타일 함수] 본인사번 견적행 전체를 예쁜 블루/하늘색 톤 배경으로 하이라이트!
+    def highlight_self_rows(row):
+        is_self = row.get('is_self', False)
+        if is_self:
+            return ['background-color: #e0f2fe; color: #0284c7; font-weight: bold;'] * len(row)
+        return [''] * len(row)
+
+    # 데이터프레임 스타일 적용
+    styled_df = my_df.style.apply(highlight_self_rows, axis=1)
+
     edited_df = st.data_editor(
-        my_df,
+        styled_df,
         column_order=column_order,
         column_config={
-            "상담일": st.column_config.DateColumn("상담일", format="YYYY-MM-DD"),
-            "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d"),
-            "1차_TM": st.column_config.CheckboxColumn("1차"),
-            "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD"),
-            "2차_TM": st.column_config.CheckboxColumn("2차"),
-            "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD"),
-            "3차_TM": st.column_config.CheckboxColumn("3차"),
-            "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD"),
-            "계약완료": st.column_config.CheckboxColumn("✅ 계약완료"),
-            "상담메모": st.column_config.TextColumn("상담메모")
+            # 연도 빼고 MM/DD 형태로 대폭 축소하여 가로 공간 확보
+            "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
+            "상담번호": st.column_config.TextColumn("상담번호", width="small"),
+            "고객명": st.column_config.TextColumn("고객명", width="small"),
+            "연락처": st.column_config.TextColumn("연락처", width="medium"),
+            "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
+            "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
+            "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"),
+            "2차_TM": st.column_config.CheckboxColumn("2차", width="small"),
+            "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
+            "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
+            "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"),
+            "계약완료": st.column_config.CheckboxColumn("✅ 계약완료", width="small"),
+            "상담메모": st.column_config.TextColumn("상담메모", width="large")
         },
         disabled=[],
+        num_rows="dynamic",
         hide_index=True,
         use_container_width=True,
         height=550
