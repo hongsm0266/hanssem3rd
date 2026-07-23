@@ -6,9 +6,10 @@ import re
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS (컬럼 제목 배경/글자 강조 스타일 포함) ---
+# --- 커스텀 CSS (컬럼 제목 파란색 강조 + 헤더 편집 아이콘 완전 제거) ---
 st.markdown("""
 <style>
+    /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -22,6 +23,8 @@ st.markdown("""
         background-color: #003d80 !important;
         color: #ffffff !important;
     }
+    
+    /* 접속자 박스 스타일 */
     .user-info-box {
         background-color: #f1f5f9;
         border: 1px solid #cbd5e1;
@@ -32,6 +35,8 @@ st.markdown("""
         color: #0f172a;
         text-align: right;
     }
+    
+    /* 요약 지표 카드 스타일 */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
@@ -49,22 +54,31 @@ st.markdown("""
         font-weight: 800 !important;
         color: #0284c7 !important;
     }
+    
+    /* 본문 데이터 글자 크기 및 굵기 */
     div[data-testid="stDataFrame"] {
         font-size: 14px !important;
         font-weight: 600 !important;
     }
-    
-    /* 컬럼 제목 옆 시스템 편집 아이콘 숨김 */
-    [data-testid="stDataFrame"] svg {
-        display: none !important;
-    }
 
-    /* [신규] 표 컬럼 제목(헤더) 진한 파란색 배경 + 흰색 글씨 강조 */
-    div[data-testid="stDataFrame"] div[role="columnheader"] {
+    /* [핵심 1] 표 컬럼 제목(헤더) 진한 파란색 배경 + 흰색 글씨 강한 강조 */
+    div[data-testid="stDataFrame"] div[role="columnheader"],
+    div[data-testid="stDataFrame"] th {
         background-color: #0056b3 !important;
         color: #ffffff !important;
         font-weight: 800 !important;
-        font-size: 14px !important;
+        font-size: 15px !important;
+    }
+
+    /* [핵심 2] 컬럼 제목 옆 연필/달력/메모지/체크박스 등 모든 시스템 아이콘 완전 삭제 */
+    div[data-testid="stDataFrame"] div[role="columnheader"] svg,
+    div[data-testid="stDataFrame"] th svg,
+    div[data-testid="stDataFrame"] [data-testid="stHeaderIcon"],
+    div[data-testid="stDataFrame"] span[class*="icon"] {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0px !important;
+        height: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
