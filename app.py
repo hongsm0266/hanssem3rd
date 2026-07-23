@@ -3,13 +3,12 @@ import pandas as pd
 from datetime import date
 import re
 
-# 1. 화면 기본 설정 (Wide 레이아웃)
+# 1. 화면 기본 설정
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS (표 전체 헤더 색상, 아이콘 완전삭제, 가짜 텍스트 주입 등 초강력 적용) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
-    /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -24,25 +23,23 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* 접속자 박스 스타일 및 텍스트 초강조 */
     .user-info-box {
         background-color: #f1f5f9;
-        border: 2px solid #0284c7; /* 테두리 파란색 강조 */
+        border: 2px solid #0284c7;
         padding: 12px 16px;
         border-radius: 8px;
         text-align: right;
     }
     .user-info-name {
-        font-size: 20px !important; /* 글씨 엄청 크게 */
-        font-weight: 900 !important; /* 엄청 굵게 */
-        color: #0369a1 !important; /* 진한 파란색 */
+        font-size: 20px !important;
+        font-weight: 900 !important;
+        color: #0369a1 !important;
     }
     .user-info-sub {
         font-size: 13px !important;
         color: #64748b !important;
     }
     
-    /* 요약 지표 카드 스타일 */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
@@ -60,48 +57,17 @@ st.markdown("""
         font-weight: 800 !important;
         color: #0284c7 !important;
     }
-    
-    /* 본문 데이터 글자 크기 및 굵기 */
-    div[data-testid="stDataFrame"] {
-        font-size: 14px !important;
-        font-weight: 600 !important;
-    }
 
-    /* ========================================= */
-    /* [표(Data Editor) 초강력 CSS 오버라이딩 영역] */
-    /* ========================================= */
-
-    /* 1. 표 헤더(컬럼명) 배경색 진한 파랑 & 글자 하양 강제 설정 */
-    th[data-testid="stDataFrameHeaderCell"] {
-        background-color: #0056b3 !important;
+    /* 표 위 헤더 강조 바 스타일 */
+    .table-header-banner {
+        background-color: #0056b3;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px 6px 0 0;
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: -10px;
     }
-    th[data-testid="stDataFrameHeaderCell"] span {
-        color: #ffffff !important;
-        font-weight: 800 !important;
-        font-size: 15px !important;
-    }
-
-    /* 2. 컬럼 제목 옆의 연필, 달력, 텍스트 아이콘 등 모든 svg 아이콘 절대 투명화 및 숨김 */
-    th[data-testid="stDataFrameHeaderCell"] svg {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-    }
-    
-    /* 3. 맨 앞 빈 공간(행 삭제 체크박스 헤더)에 '삭제체크'라는 글자 강제 주입 */
-    /* Streamlit은 맨 앞 컬럼 헤더의 텍스트가 없으므로 가짜(after) 콘텐츠를 주입합니다. */
-    th.blank[data-testid="stDataFrameHeaderCell"]:first-child::after,
-    th[data-testid="stDataFrameHeaderCell"]:first-child:empty::after,
-    table thead tr th:first-child::after {
-        content: "삭제체크" !important;
-        color: #ffffff !important;
-        font-size: 14px !important;
-        font-weight: 800 !important;
-        display: block !important;
-        text-align: center !important;
-        margin-top: 2px !important;
-    }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,7 +92,6 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
-# --- 2. 로그인 및 세션 상태 초기화 ---
 if 'logged_in' not in st.session_state:
     st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 
@@ -163,14 +128,12 @@ if not st.session_state['logged_in']:
                 st.error("아이디와 비밀번호가 일치하지 않습니다.")
     st.stop()
 
-# 로그인 정보 변수
 today = date.today()
 my_id = st.session_state['hc_id']
 my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- 3. 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
@@ -252,7 +215,6 @@ def parse_product_summary(block):
     else:
         return "기타(홈퍼니싱)"
 
-# --- 4. 마법의 텍스트 추출 함수 ---
 def parse_raw_text(text, master_mode):
     records = []
     skipped_count = 0
@@ -289,6 +251,7 @@ def parse_raw_text(text, master_mode):
             cust_display = f"👤[본인] {cust_name}" if is_self else cust_name
             
             records.append({
+                '선택/삭제': False,
                 '상담일': pd.to_datetime(date_m.group(1)).date(),
                 '상담번호': no_m.group(1),
                 'HC_ID': parsed_id,          
@@ -308,15 +271,13 @@ def parse_raw_text(text, master_mode):
             })
     return pd.DataFrame(records), skipped_count
 
-# 데이터 초기화
 if 'data' not in st.session_state:
     st.session_state['data'] = pd.DataFrame(columns=[
-        '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
+        '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ])
 
-# 견적 추가 콜백
 def add_quotes_callback():
     raw_input_text = st.session_state.get('raw_input_area', '')
     if raw_input_text.strip():
@@ -335,7 +296,6 @@ def add_quotes_callback():
         
         st.session_state['raw_input_area'] = ""
 
-# --- 5. 최상단 레이아웃 ---
 col_head_left, col_head_right = st.columns([2, 1])
 
 with col_head_left:
@@ -348,7 +308,6 @@ with col_head_right:
         if is_master:
             st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
         else:
-            # 로그인 사용자명 초강조 렌더링
             st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👤 {my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
         if st.button("로그아웃"):
@@ -357,7 +316,6 @@ with col_head_right:
 
 st.markdown("---")
 
-# --- 6. 상단 유틸리티 ---
 exp_col1, exp_col2 = st.columns([2, 1])
 
 with exp_col1:
@@ -395,7 +353,6 @@ with exp_col2:
                     use_container_width=True
                 )
 
-# 메시지 출력
 if st.session_state['success_msg']:
     st.success(st.session_state['success_msg'])
     st.session_state['success_msg'] = ""
@@ -405,7 +362,6 @@ if st.session_state['warning_msg']:
 
 st.markdown("---")
 
-# --- 7. 데이터 필터링 적용 ---
 if is_master:
     if 'selected_hc' in locals() and selected_hc != "전체보기":
         st.session_state['data']['HC_대리점'] = st.session_state['data']['HC명'] + " (" + st.session_state['data']['대리점명'] + ")"
@@ -430,7 +386,6 @@ if total_quotes > 0:
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-# --- 8. 실시간 요약 지표 ---
 st.subheader("실시간 요약 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
@@ -443,7 +398,6 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 견적 및 TM 목록 표 ---
 st.subheader("견적 및 TM 목록")
 
 filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"], horizontal=True)
@@ -454,20 +408,24 @@ if filter_tab == "본인 작성 견적만 보기":
 
 if is_master:
     column_order = [
-        "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 else:
     column_order = [
-        "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 
 if not display_df.empty:
+    # 파란색 상단 헤더 배너로 깔끔하게 시각적 강조
+    st.markdown("<div class='table-header-banner'>📌 상세 견적 목록 (수정 및 삭제 가능)</div>", unsafe_allow_html=True)
+    
     edited_df = st.data_editor(
         display_df,
         column_order=column_order,
         column_config={
+            "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small", help="삭제하거나 선택할 행 체크"),
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small"),
             "고객명": st.column_config.TextColumn("고객명", width="medium"),
@@ -485,7 +443,7 @@ if not display_df.empty:
         },
         disabled=[],
         num_rows="dynamic",
-        hide_index=False, # 숨기지 않고 삭제(index) 체크박스 컬럼 노출 유지
+        hide_index=True, # 빈 인덱스 공간 숨김
         use_container_width=True,
         height=550
     )
