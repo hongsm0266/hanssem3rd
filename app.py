@@ -7,18 +7,18 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 import io
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+import urllib.request
+import urllib.parse
+import base64
 
 # 1. 화면 기본 설정
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 구글 시트 & 드라이브 연동 설정 ---
+# --- 구글 시트 연동 설정 ---
 SHEET_NAME = "견적관리대장로우"
 
-# ⭐⭐⭐ [필수 수정] 아래 따옴표 안에 아까 복사하신 구글 드라이브 폴더 ID를 붙여넣으세요! ⭐⭐⭐
-DRIVE_FOLDER_ID = "1Fg-fjYQfV0o_7NprBJXxJPq1rE4o1cWf"
-
+# ⭐⭐⭐ [필수 수정] 아래 따옴표 안에 발급받으신 ImgBB API 키를 붙여넣으세요! ⭐⭐⭐
+IMGBB_API_KEY = "1cecb3f4e313203e40d78882356ef1ca"
 
 @st.cache_resource
 def init_connection():
@@ -271,33 +271,37 @@ if 'data' not in st.session_state:
     else:
         st.session_state['data'] = clean_and_enforce_types(None)
 
-# --- [에러 해결] 구글 드라이브 지정 폴더 업로드 함수 ---
-def upload_to_drive(file_obj, file_name):
+# --- [초간단 & 강력] ImgBB 무료 이미지 호스팅 업로드 함수 ---
+def upload_to_imgbb(file_obj, file_name):
     try:
-        creds_json = st.secrets["gcp"]["key"]
-        creds_dict = json.loads(creds_json)
-        scopes = ["https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        service = build('drive', 'v3', credentials=creds)
-
-        # 폴더 ID를 지정하여 내 저장 용량을 사용하도록 함
-        file_metadata = {
-            'name': file_name,
-            'parents': [DRIVE_FOLDER_ID]
+        if IMGBB_API_KEY == "여기에_IMGBB_API_키_붙여넣기":
+            st.error("🚨 코드 상단에 ImgBB API 키를 먼저 입력해주세요!")
+            return None
+            
+        url = "https://api.imgbb.com/1/upload"
+        # 사진 데이터를 인터넷으로 보낼 수 있는 텍스트 형태(Base64)로 변환
+        encoded_image = base64.b64encode(file_obj.read()).decode("utf-8")
+        
+        data = {
+            "key": IMGBB_API_KEY,
+            "image": encoded_image,
+            "name": file_name.split('.')[0]
         }
         
-        media = MediaIoBaseUpload(file_obj, mimetype='image/jpeg', resumable=True)
-        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        # 구글의 기본 기능(urllib)을 사용해 ImgBB 서버로 사진 전송
+        data_encoded = urllib.parse.urlencode(data).encode("utf-8")
+        req = urllib.request.Request(url, data=data_encoded)
         
-        # 누구나 링크만 있으면 볼 수 있도록 권한 개방
-        service.permissions().create(
-            fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'reader'}
-        ).execute()
-        
-        return file.get('webViewLink')
+        with urllib.request.urlopen(req) as response:
+            res_json = json.loads(response.read().decode("utf-8"))
+            if res_json.get("success"):
+                # 성공하면 전 세계 어디서든 볼 수 있는 이미지 고유 링크 반환
+                return res_json["data"]["url"]
+            else:
+                st.error("이미지 서버에서 업로드를 거절했습니다.")
+                return None
     except Exception as e:
-        st.error(f"드라이브 업로드 실패: {e}")
+        st.error(f"사진 업로드 중 오류 발생: {e}")
         return None
 
 # --- 정밀 상품 파싱 함수 ---
@@ -414,7 +418,7 @@ def add_quotes_callback():
 col_head_left, col_head_right = st.columns([2, 1])
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
-    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 구글 시트 실시간 연동 중")
+    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 실시간 자동 동기화 서버 연결됨")
 
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
@@ -438,7 +442,7 @@ with input_col1:
         st.button("견적 추가 및 시트 저장", on_click=add_quotes_callback)
 
 with input_col2:
-    with st.expander("📸 TM 증빙 사진 업로드 및 등록", expanded=True):
+    with st.expander("📸 TM 증빙 사진 초고속 업로드", expanded=True):
         temp_df = st.session_state['data']
         if not is_master:
             temp_df = temp_df[temp_df['HC_ID'] == my_id]
@@ -449,21 +453,20 @@ with input_col2:
             sel_tm = st.radio("TM 차수 선택", ["1차_증빙", "2차_증빙", "3차_증빙"], horizontal=True)
             uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'])
             
-            if st.button("사진 업로드 및 저장", type="primary"):
-                if DRIVE_FOLDER_ID == "여기에_복사한_폴더ID를_붙여넣으세요":
-                    st.error("🚨 앱 코드 상단에 구글 드라이브 '폴더 ID'를 먼저 입력해주세요!")
-                elif uploaded_img and sel_quote:
+            if st.button("🚀 사진 업로드 및 저장", type="primary"):
+                if uploaded_img and sel_quote:
                     q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
                     
-                    with st.spinner("구글 드라이브에 사진을 안전하게 업로드 중입니다..."):
+                    with st.spinner("이미지 전용 서버(ImgBB)에 초고속으로 전송 중입니다..."):
                         file_obj = io.BytesIO(uploaded_img.read())
                         filename = f"{q_no}_{sel_tm}_{today.strftime('%Y%m%d')}.jpg"
-                        img_url = upload_to_drive(file_obj, filename)
+                        
+                        img_url = upload_to_imgbb(file_obj, filename)
                         
                         if img_url:
                             st.session_state['data'].loc[st.session_state['data']['상담번호'] == q_no, sel_tm] = img_url
                             if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
-                                st.success("✅ 사진이 드라이브에 업로드되었고, 시트에 완벽히 등록되었습니다!")
+                                st.success("✅ 사진이 성공적으로 업로드되었고, 시트에 🔗사진보기 링크가 등록되었습니다!")
                                 st.rerun()
                             else:
                                 st.error("사진 업로드는 성공했으나, 구글 시트 저장에 실패했습니다.")
