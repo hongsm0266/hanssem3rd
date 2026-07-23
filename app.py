@@ -172,14 +172,12 @@ def clean_and_enforce_types(df):
     return df[required_cols]
 
 
-# --- [핵심 추가] 탭이 없으면 알아서 생성해주는 함수 ---
+# --- 탭 자동 생성 함수 ---
 def get_or_create_sheet(spreadsheet, sheet_name):
     try:
         return spreadsheet.worksheet(sheet_name)
     except gspread.exceptions.WorksheetNotFound:
-        # 구글 시트에 탭이 없으면 앱이 스스로 만들어 냅니다!
         return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
-
 
 # --- 구글 시트 데이터 로드 함수 ---
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
@@ -200,7 +198,6 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
                     continue
             return clean_and_enforce_types(pd.DataFrame(all_records) if all_records else None)
         else:
-            # 탭이 없으면 생성!
             sheet = get_or_create_sheet(spreadsheet, current_user)
             try:
                 records = sheet.get_all_records()
@@ -211,33 +208,43 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-# --- 구글 시트 데이터 저장 함수 ---
+# --- [에러 해결 핵심] 완벽한 문자열 세탁기 적용 ---
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
         headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self']]
         
+        # [핵심] Pandas 표를 리스트로 바꾼 후, 하나하나 확인해서 NaN을 빈칸으로 완벽하게 날려버리는 함수
+        def _prepare_safe_list(dataframe):
+            raw_list = [dataframe.columns.values.tolist()] + dataframe.values.tolist()
+            safe_list = []
+            for row in raw_list:
+                safe_row = []
+                for cell in row:
+                    cell_str = str(cell)
+                    # 만약 내용이 nan, nat, none 이면 깔끔한 빈칸("")으로 변경
+                    if cell_str.strip().lower() in ['nan', 'none', 'nat', '<na>']:
+                        safe_row.append("")
+                    else:
+                        safe_row.append(cell_str)
+                safe_list.append(safe_row)
+            return safe_list
+
         if is_master_mode:
             unique_names = list(set([info["name"] for info in HC_DB.values()]))
             for name in unique_names:
                 group_df = df[df['HC명'] == name]
                 if not group_df.empty:
-                    # 탭이 없으면 생성해서라도 반드시 저장!
                     sheet = get_or_create_sheet(spreadsheet, name)
                     sheet.clear()
-                    df_to_save = group_df.copy().astype(str).replace(['nan', 'None', 'NaT', '<NA>'], '')
-                    data_list = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
-                    sheet.update('A1', data_list)
+                    sheet.update('A1', _prepare_safe_list(group_df))
             return True
         else:
-            # 탭이 없으면 생성해서라도 반드시 저장!
             sheet = get_or_create_sheet(spreadsheet, current_user)
             my_df = df[df['HC명'] == current_user]
             sheet.clear()
             if not my_df.empty:
-                df_to_save = my_df.copy().astype(str).replace(['nan', 'None', 'NaT', '<NA>'], '')
-                data_list = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
-                sheet.update('A1', data_list)
+                sheet.update('A1', _prepare_safe_list(my_df))
             else:
                 sheet.update('A1', headers)
             return True
