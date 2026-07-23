@@ -11,7 +11,7 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
 # --- 구글 시트 연동 설정 ---
-SHEET_NAME = "견적관리대장로우"
+SHEET_NAME = "견적관리대장"
 
 @st.cache_resource
 def init_connection():
@@ -133,16 +133,24 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- [강력한 안전장치] 필수 컬럼 강제 생성 및 세탁 ---
+# --- [강력한 안전장치] 구글 시트가 100% 빈칸이어도 알아서 뼈대를 세우는 함수 ---
 def clean_and_enforce_types(df):
-    df = df.copy()
-    
-    # 1. 시트가 엉망이더라도 필수 컬럼은 무조건 만들어내어 앱 튕김(KeyError) 완벽 방지
     required_cols = [
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ]
+    
+    # 1. 만약 데이터가 완전히 텅 비었다면 (100% 백지 탭), 뼈대만 만들어서 돌려줌
+    if df is None or df.empty:
+        empty_df = pd.DataFrame(columns=required_cols)
+        empty_df['선택/삭제'] = empty_df['선택/삭제'].astype(bool)
+        empty_df['견적금액'] = empty_df['견적금액'].astype(int)
+        return empty_df
+
+    df = df.copy()
+    
+    # 2. 필수 기둥이 없으면 억지로라도 추가
     for col in required_cols:
         if col not in df.columns:
             if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']:
@@ -167,10 +175,10 @@ def clean_and_enforce_types(df):
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
         elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
-    # 정의된 순서대로 컬럼 정렬
+    # 정의된 순서대로 컬럼 정렬하여 반환
     return df[required_cols]
 
-# --- 구글 시트 다중 탭 연동 함수 ---
+# --- 구글 시트 다중 탭 연동 함수 (백지 탭 에러 완벽 차단) ---
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -180,24 +188,30 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
             for name in unique_names:
                 try:
                     sheet = spreadsheet.worksheet(name)
-                    records = sheet.get_all_records()
-                    if records: all_records.extend(records)
+                    try:
+                        # 탭이 완전 백지일 때 나는 에러(IndexError)를 무시하고 넘어가도록 처리
+                        records = sheet.get_all_records()
+                        if records: all_records.extend(records)
+                    except Exception:
+                        pass
                 except gspread.exceptions.WorksheetNotFound:
                     continue
-            if not all_records: return clean_and_enforce_types(pd.DataFrame())
-            return clean_and_enforce_types(pd.DataFrame(all_records))
+            return clean_and_enforce_types(pd.DataFrame(all_records) if all_records else None)
         else:
             try:
                 sheet = spreadsheet.worksheet(current_user)
-                records = sheet.get_all_records()
-                if not records: return clean_and_enforce_types(pd.DataFrame())
-                return clean_and_enforce_types(pd.DataFrame(records))
+                try:
+                    # 완전 백지 탭 방어 코드
+                    records = sheet.get_all_records()
+                except Exception:
+                    records = []
+                return clean_and_enforce_types(pd.DataFrame(records) if records else None)
             except gspread.exceptions.WorksheetNotFound:
                 st.warning(f"🚨 '{current_user}' 님의 시트 탭이 없습니다! 구글 시트 하단에서 '{current_user}' 이름으로 탭을 추가해주세요.")
-                return clean_and_enforce_types(pd.DataFrame())
+                return clean_and_enforce_types(None)
     except Exception as e:
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
-        return clean_and_enforce_types(pd.DataFrame())
+        return clean_and_enforce_types(None)
 
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
@@ -235,12 +249,12 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
         st.error(f"구글 시트 저장 실패: {e}")
         return False
 
-# 초기 데이터 로드 (에러 방지를 위해 반드시 함수 거침)
+# 초기 데이터 로드
 if 'data' not in st.session_state:
     if client:
         st.session_state['data'] = load_data_from_sheet(client, is_master, my_name)
     else:
-        st.session_state['data'] = clean_and_enforce_types(pd.DataFrame())
+        st.session_state['data'] = clean_and_enforce_types(None)
 
 # --- 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
@@ -483,4 +497,4 @@ if not display_df.empty:
                 st.rerun()
 
 else:
-    st.info("조건에 해당하는 견적 데이터가 없습니다!")
+    st.info("조건에 해당하는 견적 데이터가 없습니다. 상단의 '견적 추가'를 이용해 첫 데이터를 넣어주세요!")
