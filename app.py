@@ -15,9 +15,10 @@ import base64
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
 # --- 구글 시트 연동 설정 ---
+# 요청하신 대로 연결할 시트 이름을 변경했습니다!
 SHEET_NAME = "견적관리대장로우"
 
-# ⭐⭐⭐ [필수 수정] 아래 따옴표 안에 발급받으신 ImgBB API 키를 붙여넣으세요! ⭐⭐⭐
+# ⭐ [확인] 발급받으신 ImgBB API 키를 입력해주세요.
 IMGBB_API_KEY = "1cecb3f4e313203e40d78882356ef1ca"
 
 @st.cache_resource
@@ -246,10 +247,12 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
             unique_names = list(set([info["name"] for info in HC_DB.values()]))
             for name in unique_names:
                 group_df = df[df['HC명'] == name]
+                sheet = get_or_create_sheet(spreadsheet, name)
+                sheet.clear()
                 if not group_df.empty:
-                    sheet = get_or_create_sheet(spreadsheet, name)
-                    sheet.clear()
                     sheet.update('A1', _prepare_safe_list(group_df))
+                else:
+                    sheet.update('A1', headers)
             return True
         else:
             sheet = get_or_create_sheet(spreadsheet, current_user)
@@ -271,7 +274,7 @@ if 'data' not in st.session_state:
     else:
         st.session_state['data'] = clean_and_enforce_types(None)
 
-# --- [초간단 & 강력] ImgBB 무료 이미지 호스팅 업로드 함수 ---
+# ImgBB 업로드 함수
 def upload_to_imgbb(file_obj, file_name):
     try:
         if IMGBB_API_KEY == "여기에_IMGBB_API_키_붙여넣기":
@@ -279,7 +282,6 @@ def upload_to_imgbb(file_obj, file_name):
             return None
             
         url = "https://api.imgbb.com/1/upload"
-        # 사진 데이터를 인터넷으로 보낼 수 있는 텍스트 형태(Base64)로 변환
         encoded_image = base64.b64encode(file_obj.read()).decode("utf-8")
         
         data = {
@@ -288,14 +290,12 @@ def upload_to_imgbb(file_obj, file_name):
             "name": file_name.split('.')[0]
         }
         
-        # 구글의 기본 기능(urllib)을 사용해 ImgBB 서버로 사진 전송
         data_encoded = urllib.parse.urlencode(data).encode("utf-8")
         req = urllib.request.Request(url, data=data_encoded)
         
         with urllib.request.urlopen(req) as response:
             res_json = json.loads(response.read().decode("utf-8"))
             if res_json.get("success"):
-                # 성공하면 전 세계 어디서든 볼 수 있는 이미지 고유 링크 반환
                 return res_json["data"]["url"]
             else:
                 st.error("이미지 서버에서 업로드를 거절했습니다.")
@@ -454,7 +454,9 @@ with input_col2:
             uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'])
             
             if st.button("🚀 사진 업로드 및 저장", type="primary"):
-                if uploaded_img and sel_quote:
+                if IMGBB_API_KEY == "여기에_IMGBB_API_키_붙여넣기":
+                    st.error("🚨 앱 코드 상단에 ImgBB API 키를 먼저 입력해주세요!")
+                elif uploaded_img and sel_quote:
                     q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
                     
                     with st.spinner("이미지 전용 서버(ImgBB)에 초고속으로 전송 중입니다..."):
@@ -546,13 +548,13 @@ column_order = [
 ]
 
 if not display_df.empty:
-    st.markdown("<div class='table-header-banner'>📌 상세 견적 목록 (아래 표를 직접 클릭하여 수정하세요)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='table-header-banner'>📌 상세 견적 목록 (수정 후 아래 동기화 버튼을 누르세요)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(
         display_df,
         column_order=column_order,
         column_config={
-            "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small", help="삭제할 행에 체크"),
+            "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small", help="삭제할 행에 체크하세요"),
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True),
             "고객명": st.column_config.TextColumn("고객명", width="medium"),
@@ -578,22 +580,41 @@ if not display_df.empty:
         num_rows="dynamic", hide_index=True, use_container_width=True, height=550
     )
     
-    if st.button("💾 위에서 수정한 표 내용 전체를 구글 시트에 저장하기 (동기화)", type="primary"):
-        with st.spinner("구글 시트의 사원 탭에 안전하게 업데이트 중입니다... 🔄"):
-            global_df = st.session_state['data'].copy()
-            global_df = global_df.drop(display_df.index, errors='ignore')
-            
-            edited_df_to_keep = edited_df[~edited_df['선택/삭제']].copy()
-            edited_df_to_keep['선택/삭제'] = False 
-            
-            new_global_df = pd.concat([global_df, edited_df_to_keep])
-            new_global_df = new_global_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
-            new_global_df = clean_and_enforce_types(new_global_df)
-            
-            if save_data_to_sheet(client, new_global_df, is_master, my_name):
-                st.session_state['data'] = new_global_df
-                st.success("✅ 구글 시트의 해당 탭에 완벽하게 저장되었습니다!")
-                st.rerun()
+    # --- [삭제 및 수정 처리 버튼 2개 제공] ---
+    btn_col1, btn_col2 = st.columns(2)
+    
+    with btn_col1:
+        if st.button("🗑️ 선택한 항목 완전히 삭제하기 (구글 시트 즉시 반영)", use_container_width=True):
+            to_delete_nos = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
+            if to_delete_nos:
+                with st.spinner("구글 시트에서 완전 삭제 중입니다... 🔄"):
+                    # 삭제할 항목을 제외한 깨끗한 데이터프레임 구축
+                    st.session_state['data'] = st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_delete_nos)]
+                    st.session_state['data'] = clean_and_enforce_types(st.session_state['data'])
+                    
+                    if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
+                        st.success(f"✅ {len(to_delete_nos)}건의 견적이 구글 시트에서 영구히 삭제되었습니다!")
+                        st.rerun()
+            else:
+                st.warning("삭제할 항목의 '선택/삭제' 체크박스에 먼저 체크해주세요!")
+
+    with btn_col2:
+        if st.button("💾 수정한 표 내용 전체를 구글 시트에 저장하기 (동기화)", type="primary", use_container_width=True):
+            with st.spinner("구글 시트에 업데이트 중입니다... 🔄"):
+                global_df = st.session_state['data'].copy()
+                global_df = global_df.drop(display_df.index, errors='ignore')
+                
+                edited_df_to_keep = edited_df[~edited_df['선택/삭제']].copy()
+                edited_df_to_keep['선택/삭제'] = False 
+                
+                new_global_df = pd.concat([global_df, edited_df_to_keep])
+                new_global_df = new_global_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
+                new_global_df = clean_and_enforce_types(new_global_df)
+                
+                if save_data_to_sheet(client, new_global_df, is_master, my_name):
+                    st.session_state['data'] = new_global_df
+                    st.success("✅ 구글 시트의 해당 탭에 완벽하게 저장되었습니다!")
+                    st.rerun()
 
 else:
     st.info("조건에 해당하는 견적 데이터가 없습니다. 상단의 '견적 추가'를 이용해 첫 데이터를 넣어주세요!")
