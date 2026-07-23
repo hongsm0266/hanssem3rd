@@ -237,8 +237,11 @@ def parse_raw_text(text, master_mode):
             
             cust_name = cust_m.group(1) if cust_m else ""
             
-            # 본인 견적 여부 판별 (True/False 저장용)
-            is_self_quote = bool(cust_name and parsed_name and cust_name.strip() == parsed_name.strip())
+            # 본인 견적 여부 판별 (영업사원 이름 == 고객명)
+            is_self = bool(cust_name and parsed_name and cust_name.strip() == parsed_name.strip())
+            
+            # 본인 견적인 경우 고객명 앞에 직관적인 태그 추가
+            cust_display = f"👤[본인] {cust_name}" if is_self else cust_name
             
             records.append({
                 '상담일': pd.to_datetime(date_m.group(1)).date(),
@@ -246,7 +249,7 @@ def parse_raw_text(text, master_mode):
                 'HC_ID': parsed_id,          
                 'HC명': parsed_name,
                 '대리점명': real_dealer,
-                '고객명': cust_name,
+                '고객명': cust_display,
                 '연락처': phone_m.group(1) if phone_m else "",
                 '주소': addr_m.group(1) if addr_m else "",
                 '상품(대분류)': category_summary,
@@ -256,7 +259,7 @@ def parse_raw_text(text, master_mode):
                 '2차_TM': False, '2차_TM_일자': None,
                 '3차_TM': False, '3차_TM_일자': None,
                 '계약완료': False, '상담메모': '',
-                'is_self': is_self_quote
+                'is_self': is_self
             })
     return pd.DataFrame(records), skipped_count
 
@@ -394,8 +397,15 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 화면 밀착 조율 및 본인 견적 행(Row) 색상 스타일링 ---
+# --- 9. 견적 및 TM 목록 표 (필터 옵션 및 태그 추가) ---
 st.subheader(f"📋 견적 및 TM 목록")
+
+# 본인 작성 견적 필터링 선택 라디오 버튼
+filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "👤 본인 작성 견적만 보기"], horizontal=True)
+
+display_df = my_df.copy()
+if filter_tab == "👤 본인 작성 견적만 보기":
+    display_df = display_df[display_df['is_self'] == True]
 
 if is_master:
     column_order = [
@@ -408,25 +418,14 @@ else:
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 
-if not my_df.empty:
-    # [스타일 함수] 본인사번 견적행 전체를 예쁜 블루/하늘색 톤 배경으로 하이라이트!
-    def highlight_self_rows(row):
-        is_self = row.get('is_self', False)
-        if is_self:
-            return ['background-color: #e0f2fe; color: #0284c7; font-weight: bold;'] * len(row)
-        return [''] * len(row)
-
-    # 데이터프레임 스타일 적용
-    styled_df = my_df.style.apply(highlight_self_rows, axis=1)
-
+if not display_df.empty:
     edited_df = st.data_editor(
-        styled_df,
+        display_df,
         column_order=column_order,
         column_config={
-            # 연도 빼고 MM/DD 형태로 대폭 축소하여 가로 공간 확보
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small"),
-            "고객명": st.column_config.TextColumn("고객명", width="small"),
+            "고객명": st.column_config.TextColumn("고객명", width="medium"),
             "연락처": st.column_config.TextColumn("연락처", width="medium"),
             "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
             "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
@@ -446,4 +445,4 @@ if not my_df.empty:
     )
     st.session_state['data'].update(edited_df)
 else:
-    st.info("데이터가 없습니다. 상단의 '새 견적 추가하기'에 텍스트를 붙여넣어 보세요!")
+    st.info("조건에 해당하는 견적 데이터가 없습니다!")
