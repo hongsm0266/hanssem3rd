@@ -7,14 +7,13 @@ import os
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# 한샘 CI 로고 설정 (내부 logo.png 파일 우선 감지 ➔ 없을 시 외부 차단 방지용 원본 Vector CI 로드)
+# 한샘 CI 로고 설정
 if os.path.exists("logo.png"):
     HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"):
     HANSSEM_CI_URL = "hanssem.png"
 else:
-    # 핫링크 차단이 전혀 없는 100% 안전한 고화질 한샘 CI
-    HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png" # 대체 경로 세팅 구조
+    HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
 # --- 커스텀 CSS ---
 st.markdown("""
@@ -27,7 +26,6 @@ st.markdown("""
         padding-right: 1.5rem !important;
         padding-top: 1.5rem !important;
     }
-
     .login-card-header {
         text-align: center;
         padding: 20px 0 10px 0;
@@ -44,7 +42,6 @@ st.markdown("""
         font-size: 13px;
         margin-bottom: 20px;
     }
-
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -58,7 +55,6 @@ st.markdown("""
         background-color: #003d80 !important;
         color: #ffffff !important;
     }
-    
     .user-info-box {
         background-color: #f1f5f9;
         border: 2px solid #0284c7;
@@ -75,7 +71,6 @@ st.markdown("""
         font-size: 12px !important;
         color: #64748b !important;
     }
-    
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
@@ -93,7 +88,6 @@ st.markdown("""
         font-weight: 800 !important;
         color: #0284c7 !important;
     }
-
     .table-header-banner {
         background-color: #0056b3;
         color: white;
@@ -134,17 +128,12 @@ if 'logged_in' not in st.session_state:
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
 
-# === [중앙 정렬 로그인 화면] ===
 if not st.session_state['logged_in']:
     st.write("")
     st.write("")
-    
     col_left, col_center, col_right = st.columns([1, 1.2, 1])
-    
     with col_center:
         st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
-        
-        # [핵심] use_container_width=True 제거하고, 고정된 작은 크기(width=180)로 설정하여 깨짐 방지
         if os.path.exists("logo.png") or os.path.exists("hanssem.png"):
             st.image(HANSSEM_CI_URL, width=180) 
         else:
@@ -182,19 +171,44 @@ if not st.session_state['logged_in']:
                 st.error("아이디와 비밀번호가 일치하지 않습니다.")
     st.stop()
 
-# === 로그인 성공 후 메인 화면 ===
 today = date.today()
 my_id = st.session_state['hc_id']
 my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
+# --- [필수 안전장치] 데이터 타입 강제 고정 함수 ---
+# 에러(StreamlitAPIException: type compatibilities)를 막기 위한 핵심 방어 코드입니다.
+def clean_and_enforce_types(df):
+    # 1. 과거 CSV 로드 시 누락된 컬럼 복구
+    if '선택/삭제' not in df.columns:
+        df.insert(0, '선택/삭제', False)
+    if 'is_self' not in df.columns:
+        df['is_self'] = False
+
+    # 2. 날짜 컬럼은 무조건 Datetime 형식으로 강제 변환
+    date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
+    for col in date_cols:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+
+    # 3. 체크박스 컬럼은 무조건 Boolean(True/False) 형식으로 강제 변환
+    bool_cols = ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']
+    for col in bool_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(False).astype(bool)
+            
+    # 4. 금액은 숫자로 강제 변환
+    if '견적금액' in df.columns:
+        df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
+        
+    return df
+
 # --- 3. 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
     in_prod_area = False
-    
     for l in lines:
         if l in ["상담 상품", "상품정보"]:
             in_prod_area = True
@@ -255,7 +269,6 @@ def parse_product_summary(block):
             cat_label = f"자녀방 - {sub}"
         else:
             cat_label = "기타(홈퍼니싱)"
-
         items_summary.append(cat_label)
 
     if items_summary:
@@ -275,7 +288,6 @@ def parse_raw_text(text, master_mode):
     records = []
     skipped_count = 0
     blocks = text.split("상담일\n")[1:]
-    
     for block in blocks:
         block = "상담일\n" + block 
         hc_m = re.search(r'영업사원\n(\d+)\s+([가-힣]+)', block)
@@ -308,7 +320,7 @@ def parse_raw_text(text, master_mode):
             
             records.append({
                 '선택/삭제': False,
-                '상담일': pd.to_datetime(date_m.group(1)).date(),
+                '상담일': pd.to_datetime(date_m.group(1)),
                 '상담번호': no_m.group(1),
                 'HC_ID': parsed_id,          
                 'HC명': parsed_name,
@@ -327,21 +339,25 @@ def parse_raw_text(text, master_mode):
             })
     return pd.DataFrame(records), skipped_count
 
+# 데이터 초기화 (초기화 즉시 안전장치 적용)
 if 'data' not in st.session_state:
-    st.session_state['data'] = pd.DataFrame(columns=[
+    empty_df = pd.DataFrame(columns=[
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ])
+    st.session_state['data'] = clean_and_enforce_types(empty_df)
 
 def add_quotes_callback():
     raw_input_text = st.session_state.get('raw_input_area', '')
     if raw_input_text.strip():
         new_df, skipped = parse_raw_text(raw_input_text, is_master)
         if not new_df.empty:
+            new_df = clean_and_enforce_types(new_df)
             updated_df = pd.concat([st.session_state['data'], new_df], ignore_index=True)
             updated_df = updated_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
-            st.session_state['data'] = updated_df
+            st.session_state['data'] = clean_and_enforce_types(updated_df)
+            
             target_msg = "견적" if is_master else "본인의 견적"
             st.session_state['success_msg'] = f"성공적으로 {target_msg} {len(new_df)}건을 추가했습니다!"
         else:
@@ -353,7 +369,6 @@ def add_quotes_callback():
         st.session_state['raw_input_area'] = ""
 
 col_head_left, col_head_right = st.columns([2, 1])
-
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
     st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
@@ -391,10 +406,8 @@ with exp_col2:
             if uploaded_file is not None:
                 if st.button("불러오기"):
                     df_loaded = pd.read_csv(uploaded_file)
-                    date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
-                    for col in date_cols:
-                        df_loaded[col] = pd.to_datetime(df_loaded[col]).dt.date
-                    st.session_state['data'] = df_loaded
+                    # 파일 불러올 때 안전장치 바로 적용
+                    st.session_state['data'] = clean_and_enforce_types(df_loaded)
                     st.session_state['success_msg'] = "성공적으로 불러왔습니다!"
                     st.rerun()
         with down_col:
@@ -502,6 +515,7 @@ if not display_df.empty:
         use_container_width=True,
         height=550
     )
-    st.session_state['data'].update(edited_df)
+    # 수정한 부분도 안전하게 타입 고정 후 저장
+    st.session_state['data'].update(clean_and_enforce_types(edited_df))
 else:
     st.info("조건에 해당하는 견적 데이터가 없습니다!")
