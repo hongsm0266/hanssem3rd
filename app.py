@@ -13,8 +13,12 @@ from googleapiclient.http import MediaIoBaseUpload
 # 1. 화면 기본 설정
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 구글 시트 연동 설정 ---
+# --- 구글 시트 & 드라이브 연동 설정 ---
 SHEET_NAME = "견적관리대장로우"
+
+# ⭐⭐⭐ [필수 수정] 아래 따옴표 안에 아까 복사하신 구글 드라이브 폴더 ID를 붙여넣으세요! ⭐⭐⭐
+DRIVE_FOLDER_ID = "1Fg-fjYQfV0o_7NprBJXxJPq1rE4o1cWf"
+
 
 @st.cache_resource
 def init_connection():
@@ -42,7 +46,7 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (좌우 여백 완벽 제거 및 꽉 찬 화면) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -144,7 +148,7 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- 데이터 타입 세탁 방어 코드 (증빙 컬럼 추가) ---
+# --- 데이터 타입 세탁 방어 코드 ---
 def clean_and_enforce_types(df):
     required_cols = [
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
@@ -185,14 +189,12 @@ def clean_and_enforce_types(df):
             
     return df[required_cols]
 
-# --- 탭 자동 생성 함수 ---
 def get_or_create_sheet(spreadsheet, sheet_name):
     try:
         return spreadsheet.worksheet(sheet_name)
     except gspread.exceptions.WorksheetNotFound:
         return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
 
-# --- 구글 시트 데이터 로드 함수 ---
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -221,7 +223,6 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-# --- 완벽한 문자열 세탁기 적용 (저장 함수) ---
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -270,7 +271,7 @@ if 'data' not in st.session_state:
     else:
         st.session_state['data'] = clean_and_enforce_types(None)
 
-# --- 구글 드라이브 사진 업로드 함수 ---
+# --- [에러 해결] 구글 드라이브 지정 폴더 업로드 함수 ---
 def upload_to_drive(file_obj, file_name):
     try:
         creds_json = st.secrets["gcp"]["key"]
@@ -279,7 +280,12 @@ def upload_to_drive(file_obj, file_name):
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         service = build('drive', 'v3', credentials=creds)
 
-        file_metadata = {'name': file_name}
+        # 폴더 ID를 지정하여 내 저장 용량을 사용하도록 함
+        file_metadata = {
+            'name': file_name,
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        
         media = MediaIoBaseUpload(file_obj, mimetype='image/jpeg', resumable=True)
         file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
         
@@ -424,7 +430,6 @@ with col_head_right:
 
 st.markdown("---")
 
-# 상단 입력 및 사진 업로드 패널 분리
 input_col1, input_col2 = st.columns(2)
 
 with input_col1:
@@ -435,7 +440,6 @@ with input_col1:
 with input_col2:
     with st.expander("📸 TM 증빙 사진 업로드 및 등록", expanded=True):
         temp_df = st.session_state['data']
-        # 본인 혹은 전체 데이터 필터링
         if not is_master:
             temp_df = temp_df[temp_df['HC_ID'] == my_id]
         
@@ -446,8 +450,9 @@ with input_col2:
             uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'])
             
             if st.button("사진 업로드 및 저장", type="primary"):
-                if uploaded_img and sel_quote:
-                    # 선택된 상담번호 추출
+                if DRIVE_FOLDER_ID == "여기에_복사한_폴더ID를_붙여넣으세요":
+                    st.error("🚨 앱 코드 상단에 구글 드라이브 '폴더 ID'를 먼저 입력해주세요!")
+                elif uploaded_img and sel_quote:
                     q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
                     
                     with st.spinner("구글 드라이브에 사진을 안전하게 업로드 중입니다..."):
@@ -456,10 +461,7 @@ with input_col2:
                         img_url = upload_to_drive(file_obj, filename)
                         
                         if img_url:
-                            # 해당 견적 데이터에 링크 업데이트
                             st.session_state['data'].loc[st.session_state['data']['상담번호'] == q_no, sel_tm] = img_url
-                            
-                            # 시트에 저장
                             if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
                                 st.success("✅ 사진이 드라이브에 업로드되었고, 시트에 완벽히 등록되었습니다!")
                                 st.rerun()
