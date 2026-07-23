@@ -236,11 +236,7 @@ def parse_raw_text(text, master_mode):
             real_dealer = HC_DB.get(parsed_id, {}).get("dealer", my_dealer)
             
             cust_name = cust_m.group(1) if cust_m else ""
-            
-            # 본인 견적 여부 판별 (영업사원 이름 == 고객명)
             is_self = bool(cust_name and parsed_name and cust_name.strip() == parsed_name.strip())
-            
-            # 본인 견적인 경우 고객명 앞에 직관적인 태그 추가
             cust_display = f"👤[본인] {cust_name}" if is_self else cust_name
             
             records.append({
@@ -397,10 +393,9 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 견적 및 TM 목록 표 (필터 옵션 및 태그 추가) ---
+# --- 9. 견적 및 TM 목록 표 (체크 헤더 명시 및 고객명/연락처 밀착 조율) ---
 st.subheader(f"📋 견적 및 TM 목록")
 
-# 본인 작성 견적 필터링 선택 라디오 버튼
 filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "👤 본인 작성 견적만 보기"], horizontal=True)
 
 display_df = my_df.copy()
@@ -423,10 +418,12 @@ if not display_df.empty:
         display_df,
         column_order=column_order,
         column_config={
+            # [수정] 맨 앞 선택/삭제 라디오 헤더에 '체크' 명시 및 고객명/연락처 밀착 조율
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small"),
-            "고객명": st.column_config.TextColumn("고객명", width="medium"),
-            "연락처": st.column_config.TextColumn("연락처", width="medium"),
+            "고객명": st.column_config.TextColumn("고객명", width="small"),
+            "연락처": st.column_config.TextColumn("연락처", width="small"),
+            "주소": st.column_config.TextColumn("주소", width="medium"),
             "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
             "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
             "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"),
