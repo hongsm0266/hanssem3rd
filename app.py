@@ -133,15 +133,13 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- [강력한 안전장치] 구글 시트가 100% 빈칸이어도 알아서 뼈대를 세우는 함수 ---
+# --- 데이터 타입 세탁 방어 코드 ---
 def clean_and_enforce_types(df):
     required_cols = [
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ]
-    
-    # 1. 만약 데이터가 완전히 텅 비었다면 (100% 백지 탭), 뼈대만 만들어서 돌려줌
     if df is None or df.empty:
         empty_df = pd.DataFrame(columns=required_cols)
         empty_df['선택/삭제'] = empty_df['선택/삭제'].astype(bool)
@@ -149,14 +147,10 @@ def clean_and_enforce_types(df):
         return empty_df
 
     df = df.copy()
-    
-    # 2. 필수 기둥이 없으면 억지로라도 추가
     for col in required_cols:
         if col not in df.columns:
-            if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']:
-                df[col] = False
-            else:
-                df[col] = ''
+            if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: df[col] = False
+            else: df[col] = ''
 
     date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
     for col in date_cols:
@@ -175,10 +169,19 @@ def clean_and_enforce_types(df):
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
         elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
-    # 정의된 순서대로 컬럼 정렬하여 반환
     return df[required_cols]
 
-# --- 구글 시트 다중 탭 연동 함수 (백지 탭 에러 완벽 차단) ---
+
+# --- [핵심 추가] 탭이 없으면 알아서 생성해주는 함수 ---
+def get_or_create_sheet(spreadsheet, sheet_name):
+    try:
+        return spreadsheet.worksheet(sheet_name)
+    except gspread.exceptions.WorksheetNotFound:
+        # 구글 시트에 탭이 없으면 앱이 스스로 만들어 냅니다!
+        return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
+
+
+# --- 구글 시트 데이터 로드 함수 ---
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -189,7 +192,6 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
                 try:
                     sheet = spreadsheet.worksheet(name)
                     try:
-                        # 탭이 완전 백지일 때 나는 에러(IndexError)를 무시하고 넘어가도록 처리
                         records = sheet.get_all_records()
                         if records: all_records.extend(records)
                     except Exception:
@@ -198,21 +200,18 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
                     continue
             return clean_and_enforce_types(pd.DataFrame(all_records) if all_records else None)
         else:
+            # 탭이 없으면 생성!
+            sheet = get_or_create_sheet(spreadsheet, current_user)
             try:
-                sheet = spreadsheet.worksheet(current_user)
-                try:
-                    # 완전 백지 탭 방어 코드
-                    records = sheet.get_all_records()
-                except Exception:
-                    records = []
-                return clean_and_enforce_types(pd.DataFrame(records) if records else None)
-            except gspread.exceptions.WorksheetNotFound:
-                st.warning(f"🚨 '{current_user}' 님의 시트 탭이 없습니다! 구글 시트 하단에서 '{current_user}' 이름으로 탭을 추가해주세요.")
-                return clean_and_enforce_types(None)
+                records = sheet.get_all_records()
+            except Exception:
+                records = []
+            return clean_and_enforce_types(pd.DataFrame(records) if records else None)
     except Exception as e:
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
+# --- 구글 시트 데이터 저장 함수 ---
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -221,21 +220,18 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
         if is_master_mode:
             unique_names = list(set([info["name"] for info in HC_DB.values()]))
             for name in unique_names:
-                try:
-                    sheet = spreadsheet.worksheet(name)
-                    group_df = df[df['HC명'] == name]
+                group_df = df[df['HC명'] == name]
+                if not group_df.empty:
+                    # 탭이 없으면 생성해서라도 반드시 저장!
+                    sheet = get_or_create_sheet(spreadsheet, name)
                     sheet.clear()
-                    if not group_df.empty:
-                        df_to_save = group_df.copy().astype(str).replace(['nan', 'None', 'NaT', '<NA>'], '')
-                        data_list = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
-                        sheet.update('A1', data_list)
-                    else:
-                        sheet.update('A1', headers)
-                except gspread.exceptions.WorksheetNotFound:
-                    continue
+                    df_to_save = group_df.copy().astype(str).replace(['nan', 'None', 'NaT', '<NA>'], '')
+                    data_list = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
+                    sheet.update('A1', data_list)
             return True
         else:
-            sheet = spreadsheet.worksheet(current_user)
+            # 탭이 없으면 생성해서라도 반드시 저장!
+            sheet = get_or_create_sheet(spreadsheet, current_user)
             my_df = df[df['HC명'] == current_user]
             sheet.clear()
             if not my_df.empty:
