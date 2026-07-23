@@ -11,8 +11,7 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
 # --- 구글 시트 연동 설정 ---
-# [주의] 실제 구글 스프레드시트 이름이 "견적관리대장"이 맞는지 확인하세요! 다르면 수정 필요.
-SHEET_NAME = "견적관리대장로우"
+SHEET_NAME = "견적관리대장"
 
 @st.cache_resource
 def init_connection():
@@ -80,10 +79,8 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
-# --- 2. 로그인 ---
 if 'logged_in' not in st.session_state:
     st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
-
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
 
@@ -136,33 +133,44 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- 데이터 타입 강제 세탁 함수 ---
+# --- [강력한 안전장치] 필수 컬럼 강제 생성 및 세탁 ---
 def clean_and_enforce_types(df):
     df = df.copy()
-    if '선택/삭제' not in df.columns: df.insert(0, '선택/삭제', False)
-    if 'is_self' not in df.columns: df['is_self'] = False
     
+    # 1. 시트가 엉망이더라도 필수 컬럼은 무조건 만들어내어 앱 튕김(KeyError) 완벽 방지
+    required_cols = [
+        '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
+        '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
+        '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
+    ]
+    for col in required_cols:
+        if col not in df.columns:
+            if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']:
+                df[col] = False
+            else:
+                df[col] = ''
+
     date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
     for col in date_cols:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
-            df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
+        df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+        df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
 
     bool_cols = ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']
     for col in bool_cols:
-        if col in df.columns: df[col] = df[col].fillna(False).astype(bool)
+        df[col] = df[col].fillna(False).astype(bool)
             
-    if '견적금액' in df.columns: df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
+    df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
 
     str_cols = ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명']
     for col in str_cols:
-        if col in df.columns:
-            df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
-            if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
-            elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
-    return df
+        df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
+        if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
+        elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
+            
+    # 정의된 순서대로 컬럼 정렬
+    return df[required_cols]
 
-# --- [핵심] 구글 시트 다중 탭 연동 함수 ---
+# --- 구글 시트 다중 탭 연동 함수 ---
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -186,10 +194,10 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
                 return clean_and_enforce_types(pd.DataFrame(records))
             except gspread.exceptions.WorksheetNotFound:
                 st.warning(f"🚨 '{current_user}' 님의 시트 탭이 없습니다! 구글 시트 하단에서 '{current_user}' 이름으로 탭을 추가해주세요.")
-                return pd.DataFrame()
+                return clean_and_enforce_types(pd.DataFrame())
     except Exception as e:
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
-        return pd.DataFrame()
+        return clean_and_enforce_types(pd.DataFrame())
 
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
@@ -227,12 +235,12 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
         st.error(f"구글 시트 저장 실패: {e}")
         return False
 
-# 초기 데이터 로드 (클라우드에서 탭별로 불러오기)
+# 초기 데이터 로드 (에러 방지를 위해 반드시 함수 거침)
 if 'data' not in st.session_state:
     if client:
         st.session_state['data'] = load_data_from_sheet(client, is_master, my_name)
     else:
-        st.session_state['data'] = pd.DataFrame()
+        st.session_state['data'] = clean_and_enforce_types(pd.DataFrame())
 
 # --- 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
@@ -347,7 +355,7 @@ def add_quotes_callback():
 col_head_left, col_head_right = st.columns([2, 1])
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
-    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 구글 시트(사원별 탭) 실시간 연동 중")
+    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 구글 시트 실시간 연동 중")
 
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
@@ -457,7 +465,6 @@ if not display_df.empty:
         num_rows="dynamic", hide_index=True, use_container_width=True, height=550
     )
     
-    # 수정된 내용을 구글 시트에 최종 덮어쓰기 하는 전용 버튼 (사원별 탭 동기화)
     if st.button("💾 위에서 수정한 표 내용 전체를 구글 시트에 저장하기 (동기화)", type="primary"):
         with st.spinner("구글 시트의 사원 탭에 안전하게 업데이트 중입니다... 🔄"):
             global_df = st.session_state['data'].copy()
