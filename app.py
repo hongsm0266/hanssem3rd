@@ -12,7 +12,7 @@ st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", lay
 
 # --- 구글 시트 연동 설정 ---
 # [주의] 실제 구글 스프레드시트 이름이 "견적관리대장"이 맞는지 확인하세요! 다르면 수정 필요.
-SHEET_NAME = "견적관리대장"
+SHEET_NAME = "견적관리대장로우"
 
 @st.cache_resource
 def init_connection():
