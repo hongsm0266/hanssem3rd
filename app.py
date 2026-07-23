@@ -143,10 +143,11 @@ if not st.session_state['logged_in']:
     
     with col_center:
         st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+        
+        # [핵심] use_container_width=True 제거하고, 고정된 작은 크기(width=180)로 설정하여 깨짐 방지
         if os.path.exists("logo.png") or os.path.exists("hanssem.png"):
-            st.image(HANSSEM_CI_URL, use_container_width=True)
+            st.image(HANSSEM_CI_URL, width=180) 
         else:
-            # 안전한 한샘 워드마크 텍스트 로고
             st.markdown("<h1 style='font-size: 38px; font-weight: 900; letter-spacing: 2px; color: #000;'>HANSSEM</h1>", unsafe_allow_html=True)
         
         st.markdown("""
@@ -351,8 +352,7 @@ def add_quotes_callback():
         
         st.session_state['raw_input_area'] = ""
 
-# --- 5. 대시보드 최상단 레이아웃 ---
-col_head_left, col_head_right = st.columns([2.5, 1])
+col_head_left, col_head_right = st.columns([2, 1])
 
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
@@ -372,7 +372,6 @@ with col_head_right:
 
 st.markdown("---")
 
-# --- 6. 상단 유틸리티 ---
 exp_col1, exp_col2 = st.columns([2, 1])
 
 with exp_col1:
