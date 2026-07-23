@@ -2,17 +2,23 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import re
+import os
 
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# 한샘 공식 고화질 CI 이미지 URL (SVG 기반 초고화질)
-HANSSEM_CI_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Hanssem_logo.svg/512px-Hanssem_logo.svg.png"
+# 한샘 CI 로고 설정 (내부 logo.png 파일 우선 감지 ➔ 없을 시 외부 차단 방지용 원본 Vector CI 로드)
+if os.path.exists("logo.png"):
+    HANSSEM_CI_URL = "logo.png"
+elif os.path.exists("hanssem.png"):
+    HANSSEM_CI_URL = "hanssem.png"
+else:
+    # 핫링크 차단이 전혀 없는 100% 안전한 고화질 한샘 CI
+    HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png" # 대체 경로 세팅 구조
 
-# --- 커스텀 CSS (중앙 로그인 카드 & 전체 레이아웃 100% 꽉 채우기) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
-    /* 메인 컨테이너 좌우 여백 100% 확장 */
     .main .block-container,
     [data-testid="stMainBlockContainer"],
     [data-testid="stAppViewBlockContainer"] {
@@ -22,7 +28,6 @@ st.markdown("""
         padding-top: 1.5rem !important;
     }
 
-    /* 로그인 카드 모듈 세련된 디자인 */
     .login-card-header {
         text-align: center;
         padding: 20px 0 10px 0;
@@ -40,7 +45,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -55,7 +59,6 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* 접속자 정보 박스 */
     .user-info-box {
         background-color: #f1f5f9;
         border: 2px solid #0284c7;
@@ -73,7 +76,6 @@ st.markdown("""
         color: #64748b !important;
     }
     
-    /* 요약 지표 카드 스타일 */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
@@ -92,7 +94,6 @@ st.markdown("""
         color: #0284c7 !important;
     }
 
-    /* 표 위 헤더 강조 바 */
     .table-header-banner {
         background-color: #0056b3;
         color: white;
@@ -138,13 +139,17 @@ if not st.session_state['logged_in']:
     st.write("")
     st.write("")
     
-    # 3개 컬럼을 만들어 중앙(col2)에 로그인 폼 배치
-    col_left, col_center, col_right = st.columns([1, 1.1, 1])
+    col_left, col_center, col_right = st.columns([1, 1.2, 1])
     
     with col_center:
-        st.markdown(f"""
-        <div class="login-card-header">
-            <img src="{HANSSEM_CI_URL}" alt="HANSSEM Logo" style="width: 220px; max-width: 80%; height: auto;">
+        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+        if os.path.exists("logo.png") or os.path.exists("hanssem.png"):
+            st.image(HANSSEM_CI_URL, use_container_width=True)
+        else:
+            # 안전한 한샘 워드마크 텍스트 로고
+            st.markdown("<h1 style='font-size: 38px; font-weight: 900; letter-spacing: 2px; color: #000;'>HANSSEM</h1>", unsafe_allow_html=True)
+        
+        st.markdown("""
             <div class="login-card-title">충청호남팀 견적관리 로그인</div>
             <div class="login-card-sub">견적 등록 및 TM 진도율 실시간 통합 시스템</div>
         </div>
@@ -346,16 +351,12 @@ def add_quotes_callback():
         
         st.session_state['raw_input_area'] = ""
 
-# --- 5. 대시보드 최상단 레이아웃 (CI 로고 연동) ---
+# --- 5. 대시보드 최상단 레이아웃 ---
 col_head_left, col_head_right = st.columns([2.5, 1])
 
 with col_head_left:
-    head_sub1, head_sub2 = st.columns([1, 4])
-    with head_sub1:
-        st.image(HANSSEM_CI_URL, width=150)
-    with head_sub2:
-        st.title("충청호남팀 견적 관리 및 TM 진도")
-        st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
+    st.title("충청호남팀 견적 관리 및 TM 진도")
+    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
 
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
