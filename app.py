@@ -240,6 +240,7 @@ def parse_raw_text(text, master_mode):
             cust_display = f"👤[본인] {cust_name}" if is_self else cust_name
             
             records.append({
+                '선택/삭제': False,
                 '상담일': pd.to_datetime(date_m.group(1)).date(),
                 '상담번호': no_m.group(1),
                 'HC_ID': parsed_id,          
@@ -262,7 +263,7 @@ def parse_raw_text(text, master_mode):
 # 데이터 초기화
 if 'data' not in st.session_state:
     st.session_state['data'] = pd.DataFrame(columns=[
-        '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
+        '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
         '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
         '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
     ])
@@ -290,16 +291,16 @@ def add_quotes_callback():
 col_head_left, col_head_right = st.columns([2, 1])
 
 with col_head_left:
-    st.title("📊 충청호남팀 견적 관리 및 TM 진도")
+    st.title("충청호남팀 견적 관리 및 TM 진도")
     st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')}")
 
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
     with sub_col1:
         if is_master:
-            st.markdown(f"<div class='user-info-box'>👑 접속자: {my_name}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='user-info-box'>접속자: {my_name}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class='user-info-box'>👤 {my_name} ({my_dealer})<br><span style='font-size:12px;color:#64748b;'>사번: {my_id}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='user-info-box'>{my_name} ({my_dealer})<br><span style='font-size:12px;color:#64748b;'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
         if st.button("로그아웃"):
             st.session_state['logged_in'] = False
@@ -311,12 +312,12 @@ st.markdown("---")
 exp_col1, exp_col2 = st.columns([2, 1])
 
 with exp_col1:
-    with st.expander("➕ 한샘 시스템 화면 복사해서 새 견적 추가하기", expanded=True):
+    with st.expander("한샘 시스템 화면 복사해서 새 견적 추가하기", expanded=True):
         st.text_area("사내 시스템에서 복사한 텍스트를 여기에 그대로 붙여넣으세요", height=100, key="raw_input_area")
-        st.button("📥 견적 추가", on_click=add_quotes_callback)
+        st.button("견적 추가", on_click=add_quotes_callback)
 
 with exp_col2:
-    with st.expander("💾 데이터 백업 / 복구 / 필터", expanded=True):
+    with st.expander("데이터 백업 / 복구 / 필터", expanded=True):
         if is_master:
             all_hc_list = ["전체보기"] + [f"{info['name']} ({info['dealer']})" for info in HC_DB.values()]
             selected_hc = st.selectbox("영업사원 선택", all_hc_list)
@@ -325,7 +326,7 @@ with exp_col2:
         with up_col:
             uploaded_file = st.file_uploader("어제 저장한 CSV 복구", type=['csv'], label_visibility="collapsed")
             if uploaded_file is not None:
-                if st.button("📂 불러오기"):
+                if st.button("불러오기"):
                     df_loaded = pd.read_csv(uploaded_file)
                     date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
                     for col in date_cols:
@@ -338,7 +339,7 @@ with exp_col2:
                 csv_data = st.session_state['data'].to_csv(index=False).encode('utf-8-sig')
                 file_prefix = "전체" if is_master else my_name
                 st.download_button(
-                    label="💾 오늘 데이터 저장",
+                    label="오늘 데이터 저장",
                     data=csv_data,
                     file_name=f"{file_prefix}_견적관리_{today.strftime('%Y%m%d')}.csv",
                     mime="text/csv",
@@ -380,8 +381,8 @@ if total_quotes > 0:
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-# --- 8. 실시간 요약 지표 ---
-st.subheader("📈 실시간 요약 지표")
+# --- 8. 실시간 요약 지표 (아이콘 전면 제거) ---
+st.subheader("실시간 요약 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
 m1.metric(title_text, f"{total_quotes}건")
@@ -393,23 +394,23 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 견적 및 TM 목록 표 (체크 헤더 명시 및 고객명/연락처 밀착 조율) ---
-st.subheader(f"📋 견적 및 TM 목록")
+# --- 9. 견적 및 TM 목록 표 (체크 헤더 명시 및 너비/아이콘 최적화) ---
+st.subheader("견적 및 TM 목록")
 
-filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "👤 본인 작성 견적만 보기"], horizontal=True)
+filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"], horizontal=True)
 
 display_df = my_df.copy()
-if filter_tab == "👤 본인 작성 견적만 보기":
+if filter_tab == "본인 작성 견적만 보기":
     display_df = display_df[display_df['is_self'] == True]
 
 if is_master:
     column_order = [
-        "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 else:
     column_order = [
-        "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
+        "선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
         "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
     ]
 
@@ -418,11 +419,11 @@ if not display_df.empty:
         display_df,
         column_order=column_order,
         column_config={
-            # [수정] 맨 앞 선택/삭제 라디오 헤더에 '체크' 명시 및 고객명/연락처 밀착 조율
+            "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"),
             "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
             "상담번호": st.column_config.TextColumn("상담번호", width="small"),
-            "고객명": st.column_config.TextColumn("고객명", width="small"),
-            "연락처": st.column_config.TextColumn("연락처", width="small"),
+            "고객명": st.column_config.TextColumn("고객명", width="medium"),
+            "연락처": st.column_config.TextColumn("연락처", width="medium"),
             "주소": st.column_config.TextColumn("주소", width="medium"),
             "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
             "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
@@ -431,7 +432,7 @@ if not display_df.empty:
             "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
             "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
             "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"),
-            "계약완료": st.column_config.CheckboxColumn("✅ 계약완료", width="small"),
+            "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"),
             "상담메모": st.column_config.TextColumn("상담메모", width="large")
         },
         disabled=[],
