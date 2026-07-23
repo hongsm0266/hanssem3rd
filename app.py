@@ -11,7 +11,7 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
 # --- 구글 시트 연동 설정 ---
-SHEET_NAME = "견적관리대장"
+SHEET_NAME = "견적관리대장로우"
 
 @st.cache_resource
 def init_connection():
