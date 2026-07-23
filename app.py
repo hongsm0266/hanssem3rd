@@ -177,38 +177,45 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- [필수 안전장치] 데이터 타입 강제 고정 함수 ---
+# --- [에러 방지 핵심] 데이터 타입 강제 고정 및 빈칸 찌꺼기 세탁 함수 ---
 def clean_and_enforce_types(df):
-    # 1. 과거 CSV 로드 시 누락된 컬럼 복구
+    df = df.copy()
+    
+    # 1. 누락된 컬럼 복구
     if '선택/삭제' not in df.columns:
         df.insert(0, '선택/삭제', False)
     if 'is_self' not in df.columns:
         df['is_self'] = False
 
-    # 2. 날짜 컬럼은 무조건 Datetime 형식으로 강제 변환
+    # 2. 날짜 컬럼의 빈칸(NaN, NaT)을 확실한 None으로 세탁 (에러 원인 차단)
     date_cols = ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']
     for col in date_cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+            # Pandas의 빈값을 나타내는 NaT를 파이썬 순수 None으로 강제 변환
+            df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
 
-    # 3. 체크박스 컬럼은 무조건 Boolean(True/False) 형식으로 강제 변환
+    # 3. 체크박스 강제 Bool 변환
     bool_cols = ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']
     for col in bool_cols:
         if col in df.columns:
             df[col] = df[col].fillna(False).astype(bool)
             
-    # 4. 금액은 숫자로 강제 변환
+    # 4. 금액 변환
     if '견적금액' in df.columns:
         df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
 
-    # 5. [핵심] 사번, 상담번호 등 문자열 강제 고정 (0이 날아가는 현상 완벽 차단)
-    if 'HC_ID' in df.columns:
-        df['HC_ID'] = df['HC_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(8)
-    if '상담번호' in df.columns:
-        df['상담번호'] = df['상담번호'].astype(str).str.replace(r'\.0$', '', regex=True)
-    if '연락처' in df.columns:
-        df['연락처'] = df['연락처'].astype(str).replace('nan', '')
-        
+    # 5. [핵심] 문자열(텍스트) 칸의 float(NaN) 찌꺼기 완벽 제거
+    str_cols = ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명']
+    for col in str_cols:
+        if col in df.columns:
+            # 글자로 바꾸면서 들어간 쓸데없는 nan 글자들을 진짜 빈칸('')으로 날려버림
+            df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
+            if col == 'HC_ID':
+                df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
+            elif col == '상담번호':
+                df[col] = df[col].str.replace(r'\.0$', '', regex=True)
+                
     return df
 
 # --- 3. 정밀 상품 파싱 함수 ---
@@ -297,6 +304,7 @@ def parse_raw_text(text, master_mode):
     records = []
     skipped_count = 0
     blocks = text.split("상담일\n")[1:]
+    
     for block in blocks:
         block = "상담일\n" + block 
         hc_m = re.search(r'영업사원\n(\d+)\s+([가-힣]+)', block)
@@ -348,7 +356,6 @@ def parse_raw_text(text, master_mode):
             })
     return pd.DataFrame(records), skipped_count
 
-# 데이터 초기화 (초기화 즉시 안전장치 적용)
 if 'data' not in st.session_state:
     empty_df = pd.DataFrame(columns=[
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
@@ -414,8 +421,8 @@ with exp_col2:
             uploaded_file = st.file_uploader("어제 저장한 CSV 복구", type=['csv'], label_visibility="collapsed")
             if uploaded_file is not None:
                 if st.button("불러오기"):
-                    # [핵심] 불러올 때 사번, 연락처에서 0이 빠지는 현상을 원천 방지
-                    df_loaded = pd.read_csv(uploaded_file, dtype={'HC_ID': str, '상담번호': str, '연락처': str})
+                    # 파일을 불러온 즉시 세탁 함수를 거치게 하여 에러 방지
+                    df_loaded = pd.read_csv(uploaded_file)
                     st.session_state['data'] = clean_and_enforce_types(df_loaded)
                     st.session_state['success_msg'] = "성공적으로 불러왔습니다!"
                     st.rerun()
@@ -447,7 +454,6 @@ if is_master:
     else:
         my_df = st.session_state['data'].copy()
 else:
-    # 로그인한 본인 사번(my_id)과 완벽히 일치하는 데이터만 필터링!
     my_df = st.session_state['data'][st.session_state['data']['HC_ID'] == my_id].copy()
 
 total_quotes = len(my_df)
@@ -525,7 +531,7 @@ if not display_df.empty:
         use_container_width=True,
         height=550
     )
-    # 수정한 부분도 안전하게 타입 고정 후 저장
+    # 수정된 데이터도 무조건 세탁해서 저장
     st.session_state['data'].update(clean_and_enforce_types(edited_df))
 else:
     st.info("조건에 해당하는 견적 데이터가 없습니다!")
