@@ -6,7 +6,7 @@ import re
 # 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (컬럼 제목 배경/글자 강조 스타일 포함) ---
 st.markdown("""
 <style>
     div.stButton > button:first-child {
@@ -52,6 +52,19 @@ st.markdown("""
     div[data-testid="stDataFrame"] {
         font-size: 14px !important;
         font-weight: 600 !important;
+    }
+    
+    /* 컬럼 제목 옆 시스템 편집 아이콘 숨김 */
+    [data-testid="stDataFrame"] svg {
+        display: none !important;
+    }
+
+    /* [신규] 표 컬럼 제목(헤더) 진한 파란색 배경 + 흰색 글씨 강조 */
+    div[data-testid="stDataFrame"] div[role="columnheader"] {
+        background-color: #0056b3 !important;
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        font-size: 14px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -381,7 +394,7 @@ if total_quotes > 0:
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-# --- 8. 실시간 요약 지표 (아이콘 전면 제거) ---
+# --- 8. 실시간 요약 지표 ---
 st.subheader("실시간 요약 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
@@ -394,7 +407,7 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# --- 9. 견적 및 TM 목록 표 (체크 헤더 명시 및 너비/아이콘 최적화) ---
+# --- 9. 견적 및 TM 목록 표 ---
 st.subheader("견적 및 TM 목록")
 
 filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"], horizontal=True)
