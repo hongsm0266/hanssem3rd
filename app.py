@@ -6,6 +6,9 @@ import os
 import json
 import gspread
 from google.oauth2.service_account import Credentials
+import io
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # 1. 화면 기본 설정
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
@@ -39,10 +42,18 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (좌우 여백 완벽 제거 및 꽉 찬 화면) ---
 st.markdown("""
 <style>
-    .main .block-container { max-width: 100% !important; padding: 1.5rem !important; }
+    .main .block-container,
+    [data-testid="stMainBlockContainer"],
+    [data-testid="stAppViewBlockContainer"] {
+        max-width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
+    }
     .login-card-header { text-align: center; padding: 20px 0 10px 0; }
     .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 800 !important; margin-top: 15px; margin-bottom: 5px; }
     .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
@@ -133,12 +144,15 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- 데이터 타입 세탁 방어 코드 ---
+# --- 데이터 타입 세탁 방어 코드 (증빙 컬럼 추가) ---
 def clean_and_enforce_types(df):
     required_cols = [
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
-        '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', 
-        '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self'
+        '현장유형', '견적금액', 
+        '1차_TM', '1차_TM_일자', '1차_증빙', 
+        '2차_TM', '2차_TM_일자', '2차_증빙', 
+        '3차_TM', '3차_TM_일자', '3차_증빙', 
+        '계약완료', '상담메모', 'is_self'
     ]
     if df is None or df.empty:
         empty_df = pd.DataFrame(columns=required_cols)
@@ -163,14 +177,13 @@ def clean_and_enforce_types(df):
             
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
 
-    str_cols = ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명']
+    str_cols = ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙']
     for col in str_cols:
         df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
         elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
     return df[required_cols]
-
 
 # --- 탭 자동 생성 함수 ---
 def get_or_create_sheet(spreadsheet, sheet_name):
@@ -208,13 +221,12 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-# --- [에러 해결 핵심] 완벽한 문자열 세탁기 적용 ---
+# --- 완벽한 문자열 세탁기 적용 (저장 함수) ---
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
-        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '2차_TM', '2차_TM_일자', '3차_TM', '3차_TM_일자', '계약완료', '상담메모', 'is_self']]
+        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']]
         
-        # [핵심] Pandas 표를 리스트로 바꾼 후, 하나하나 확인해서 NaN을 빈칸으로 완벽하게 날려버리는 함수
         def _prepare_safe_list(dataframe):
             raw_list = [dataframe.columns.values.tolist()] + dataframe.values.tolist()
             safe_list = []
@@ -222,7 +234,6 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
                 safe_row = []
                 for cell in row:
                     cell_str = str(cell)
-                    # 만약 내용이 nan, nat, none 이면 깔끔한 빈칸("")으로 변경
                     if cell_str.strip().lower() in ['nan', 'none', 'nat', '<na>']:
                         safe_row.append("")
                     else:
@@ -259,12 +270,35 @@ if 'data' not in st.session_state:
     else:
         st.session_state['data'] = clean_and_enforce_types(None)
 
+# --- 구글 드라이브 사진 업로드 함수 ---
+def upload_to_drive(file_obj, file_name):
+    try:
+        creds_json = st.secrets["gcp"]["key"]
+        creds_dict = json.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {'name': file_name}
+        media = MediaIoBaseUpload(file_obj, mimetype='image/jpeg', resumable=True)
+        file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        
+        # 누구나 링크만 있으면 볼 수 있도록 권한 개방
+        service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        st.error(f"드라이브 업로드 실패: {e}")
+        return None
+
 # --- 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
     in_prod_area = False
-    
     for l in lines:
         if l in ["상담 상품", "상품정보"]: in_prod_area = True; continue
         if l in ["구매 동기", "할인혜택 적용", "시방서", "시방서 (선택)"]: in_prod_area = False
@@ -336,8 +370,10 @@ def parse_raw_text(text, master_mode):
                 '대리점명': real_dealer, '고객명': cust_display, '연락처': phone_m.group(1) if phone_m else "",
                 '주소': addr_m.group(1) if addr_m else "", '상품(대분류)': category_summary,
                 '현장유형': type_m.group(1) if type_m else "", '견적금액': int(amt_str),
-                '1차_TM': False, '1차_TM_일자': None, '2차_TM': False, '2차_TM_일자': None,
-                '3차_TM': False, '3차_TM_일자': None, '계약완료': False, '상담메모': '', 'is_self': is_self
+                '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '',
+                '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '',
+                '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '',
+                '계약완료': False, '상담메모': '', 'is_self': is_self
             })
     return pd.DataFrame(records), skipped_count
 
@@ -388,9 +424,51 @@ with col_head_right:
 
 st.markdown("---")
 
-with st.expander("➕ 한샘 시스템 화면 복사해서 새 견적 추가하기", expanded=True):
-    st.text_area("사내 시스템에서 복사한 텍스트를 여기에 그대로 붙여넣으세요", height=100, key="raw_input_area")
-    st.button("견적 추가 및 구글 시트 저장", on_click=add_quotes_callback)
+# 상단 입력 및 사진 업로드 패널 분리
+input_col1, input_col2 = st.columns(2)
+
+with input_col1:
+    with st.expander("➕ 한샘 시스템 복사해서 새 견적 추가", expanded=True):
+        st.text_area("텍스트를 붙여넣으세요", height=120, key="raw_input_area")
+        st.button("견적 추가 및 시트 저장", on_click=add_quotes_callback)
+
+with input_col2:
+    with st.expander("📸 TM 증빙 사진 업로드 및 등록", expanded=True):
+        temp_df = st.session_state['data']
+        # 본인 혹은 전체 데이터 필터링
+        if not is_master:
+            temp_df = temp_df[temp_df['HC_ID'] == my_id]
+        
+        if not temp_df.empty:
+            quote_list = temp_df['상담일'].astype(str) + " | " + temp_df['고객명'] + " (" + temp_df['상담번호'] + ")"
+            sel_quote = st.selectbox("증빙을 추가할 견적 선택", quote_list.tolist())
+            sel_tm = st.radio("TM 차수 선택", ["1차_증빙", "2차_증빙", "3차_증빙"], horizontal=True)
+            uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'])
+            
+            if st.button("사진 업로드 및 저장", type="primary"):
+                if uploaded_img and sel_quote:
+                    # 선택된 상담번호 추출
+                    q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
+                    
+                    with st.spinner("구글 드라이브에 사진을 안전하게 업로드 중입니다..."):
+                        file_obj = io.BytesIO(uploaded_img.read())
+                        filename = f"{q_no}_{sel_tm}_{today.strftime('%Y%m%d')}.jpg"
+                        img_url = upload_to_drive(file_obj, filename)
+                        
+                        if img_url:
+                            # 해당 견적 데이터에 링크 업데이트
+                            st.session_state['data'].loc[st.session_state['data']['상담번호'] == q_no, sel_tm] = img_url
+                            
+                            # 시트에 저장
+                            if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
+                                st.success("✅ 사진이 드라이브에 업로드되었고, 시트에 완벽히 등록되었습니다!")
+                                st.rerun()
+                            else:
+                                st.error("사진 업로드는 성공했으나, 구글 시트 저장에 실패했습니다.")
+                else:
+                    st.warning("견적을 선택하고 사진을 업로드해주세요!")
+        else:
+            st.info("먼저 견적을 등록해주세요!")
 
 if st.session_state['success_msg']:
     st.success(st.session_state['success_msg'])
@@ -450,10 +528,16 @@ if filter_tab == "본인 작성 견적만 보기":
 
 column_order = [
     "선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
-    "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
+    "1차_TM", "1차_TM_일자", "1차_증빙", 
+    "2차_TM", "2차_TM_일자", "2차_증빙", 
+    "3차_TM", "3차_TM_일자", "3차_증빙", 
+    "계약완료", "상담메모"
 ] if is_master else [
     "선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
-    "1차_TM", "1차_TM_일자", "2차_TM", "2차_TM_일자", "3차_TM", "3차_TM_일자", "계약완료", "상담메모"
+    "1차_TM", "1차_TM_일자", "1차_증빙", 
+    "2차_TM", "2차_TM_일자", "2차_증빙", 
+    "3차_TM", "3차_TM_일자", "3차_증빙", 
+    "계약완료", "상담메모"
 ]
 
 if not display_df.empty:
@@ -470,12 +554,19 @@ if not display_df.empty:
             "연락처": st.column_config.TextColumn("연락처", width="medium"),
             "주소": st.column_config.TextColumn("주소", width="medium"),
             "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
+            
             "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
             "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"),
+            "1차_증빙": st.column_config.LinkColumn("1차 증빙", display_text="🔗 사진보기", width="small"),
+            
             "2차_TM": st.column_config.CheckboxColumn("2차", width="small"),
             "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
+            "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"),
+            
             "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
             "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"),
+            "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
+            
             "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"),
             "상담메모": st.column_config.TextColumn("상담메모", width="large")
         },
