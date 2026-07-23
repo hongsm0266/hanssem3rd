@@ -3,12 +3,23 @@ import pandas as pd
 from datetime import date
 import re
 
-# 1. 화면 기본 설정
+# 1. 화면 기본 설정 (Wide 레이아웃)
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (좌우 여백 100% 제거 + UI 디자인) ---
 st.markdown("""
 <style>
+    /* [핵심] 메인 컨테이너 좌우 여백 극소화 (화면 전체 꽉 채우기) */
+    .main .block-container,
+    [data-testid="stMainBlockContainer"],
+    [data-testid="stAppViewBlockContainer"] {
+        max-width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1.5rem !important;
+    }
+
+    /* 메인 버튼 스타일 */
     div.stButton > button:first-child {
         background-color: #0056b3 !important;
         color: white !important;
@@ -23,6 +34,7 @@ st.markdown("""
         color: #ffffff !important;
     }
     
+    /* 접속자 박스 스타일 */
     .user-info-box {
         background-color: #f1f5f9;
         border: 2px solid #0284c7;
@@ -40,6 +52,7 @@ st.markdown("""
         color: #64748b !important;
     }
     
+    /* 요약 지표 카드 스타일 */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important;
         border: 1px solid #bae6fd !important;
@@ -418,7 +431,6 @@ else:
     ]
 
 if not display_df.empty:
-    # 파란색 상단 헤더 배너로 깔끔하게 시각적 강조
     st.markdown("<div class='table-header-banner'>📌 상세 견적 목록 (수정 및 삭제 가능)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(
@@ -443,7 +455,7 @@ if not display_df.empty:
         },
         disabled=[],
         num_rows="dynamic",
-        hide_index=True, # 빈 인덱스 공간 숨김
+        hide_index=True,
         use_container_width=True,
         height=550
     )
