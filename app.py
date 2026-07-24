@@ -46,7 +46,7 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (버튼 색상 및 위치 디자인 추가) ---
+# --- 커스텀 CSS (지표 디자인 대폭 강화) ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -62,46 +62,77 @@ st.markdown("""
     .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 800 !important; margin-top: 15px; margin-bottom: 5px; }
     .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
     
-    /* 기본 공통 버튼 스타일 (글자가 길면 줄바꿈 되도록 처리) */
+    /* 3D 버튼 효과 */
     div.stButton > button { 
-        background-color: #0056b3 !important; 
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important; 
         color: white !important; 
         font-size: 15px !important; 
-        font-weight: bold !important; 
-        border-radius: 6px !important; 
+        font-weight: 800 !important; 
+        border-radius: 8px !important; 
         padding: 10px 15px !important; 
         border: none !important; 
         white-space: pre-wrap !important; 
         height: auto !important; 
         min-height: 45px;
         line-height: 1.4 !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        border-bottom: 4px solid #1e3a8a !important; 
+        transition: all 0.1s ease !important; 
     }
-    div.stButton > button:hover { background-color: #003d80 !important; color: #ffffff !important; }
+    div.stButton > button:hover { 
+        background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important; 
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 8px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+    }
+    div.stButton > button:active { 
+        transform: translateY(2px) !important;
+        border-bottom: 1px solid #1e3a8a !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+        margin-bottom: 3px !important;
+    }
     
-    /* 1번 완전삭제 버튼 타겟팅 (빨간 바탕, 흰 글씨) */
+    /* 삭제 버튼 (빨강) */
     div.element-container:has(.red-btn) + div.element-container div.stButton > button {
-        background-color: #ef4444 !important; 
+        background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
+        border-bottom: 4px solid #991b1b !important;
         color: #ffffff !important;
     }
-    div.element-container:has(.red-btn) + div.element-container div.stButton > button:hover {
-        background-color: #dc2626 !important;
-    }
+    div.element-container:has(.red-btn) + div.element-container div.stButton > button:hover { background: linear-gradient(180deg, #f87171 0%, #ef4444 100%) !important; }
+    div.element-container:has(.red-btn) + div.element-container div.stButton > button:active { border-bottom: 1px solid #991b1b !important; }
 
-    /* 2번 최종저장 버튼 타겟팅 (노란 바탕, 검은 글씨) */
+    /* 저장 버튼 (노랑) */
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button {
-        background-color: #facc15 !important; 
-        color: #000000 !important;
+        background: linear-gradient(180deg, #facc15 0%, #eab308 100%) !important;
+        border-bottom: 4px solid #a16207 !important;
+        color: #1c1917 !important;
     }
-    div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:hover {
-        background-color: #eab308 !important;
+    div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:hover { background: linear-gradient(180deg, #fde047 0%, #facc15 100%) !important; }
+    div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:active { border-bottom: 1px solid #a16207 !important; }
+
+    /* 💡 지표(Metric) 시인성 초강력 강화 세팅 */
+    [data-testid="stMetric"] { 
+        background: #ffffff !important; 
+        border: 2px solid #cbd5e1 !important; 
+        border-left: 8px solid #2563eb !important; 
+        border-radius: 12px !important; 
+        padding: 15px 20px !important; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06) !important; 
+    }
+    [data-testid="stMetricLabel"] { 
+        font-size: 16px !important; 
+        font-weight: 800 !important; 
+        color: #1e3a8a !important; 
+        margin-bottom: 8px !important; 
+    }
+    [data-testid="stMetricValue"] { 
+        font-size: 28px !important; 
+        font-weight: 900 !important; 
+        color: #dc2626 !important; /* 숫자는 강렬한 빨간색 */
     }
 
     .user-info-box { background-color: #f1f5f9; border: 2px solid #0284c7; padding: 12px 16px; border-radius: 8px; text-align: right; }
     .user-info-name { font-size: 18px !important; font-weight: 900 !important; color: #0369a1 !important; }
     .user-info-sub { font-size: 12px !important; color: #64748b !important; }
-    [data-testid="stMetric"] { background: linear-gradient(135deg, #eef6ff 0%, #e0f2fe 100%) !important; border: 1px solid #bae6fd !important; border-radius: 10px !important; padding: 10px 14px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important; }
-    [data-testid="stMetricLabel"] { font-size: 13px !important; font-weight: 700 !important; color: #0369a1 !important; }
-    [data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 800 !important; color: #0284c7 !important; }
     .table-header-banner { background-color: #0056b3; color: white; padding: 8px 16px; border-radius: 6px 6px 0 0; font-weight: bold; font-size: 14px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
 </style>
 """, unsafe_allow_html=True)
@@ -131,6 +162,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
+if 'uploader_key' not in st.session_state: st.session_state['uploader_key'] = 0
 
 if not st.session_state['logged_in']:
     st.write("")
@@ -256,6 +288,73 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
+# 💡 '시트1' (영업 실적) 실시간 연동 로직
+@st.cache_data(ttl=300) # 5분마다 자동 갱신 (부하 방지)
+def load_perf_sheet(_gc_client):
+    try:
+        spreadsheet = _gc_client.open(SHEET_NAME)
+        sheet = spreadsheet.worksheet("시트1")
+        return pd.DataFrame(sheet.get_all_records())
+    except Exception:
+        return pd.DataFrame()
+
+def get_perf_metrics(perf_df, target_id):
+    default = { '견적건(일)': '0', '견적건(월)': '0', '계약건(일)': '0', '계약건(월)': '0', '계약율': '0%', '계약금액(월)': '0', '당월매출 누계': '0', 'M+1': '0' }
+    if perf_df is None or perf_df.empty: return default
+    df_cols = perf_df.columns
+    
+    def extract(row, kw):
+        for c in df_cols:
+            if kw in c.replace(" ", ""):
+                val = row[c]
+                if pd.isna(val) or val == "": return "0"
+                if kw == "계약율": return str(val) # 계약율은 % 문자열 그대로 출력
+                try:
+                    fval = float(str(val).replace(',', '').replace('원', '').strip())
+                    return f"{int(fval):,}" if fval.is_integer() else f"{fval:,.1f}"
+                except:
+                    return str(val)
+        return "0"
+
+    if target_id == "ALL":
+        sums = { '견적건(일)': 0, '견적건(월)': 0, '계약건(일)': 0, '계약건(월)': 0, '계약금액(월)': 0, '당월매출 누계': 0, 'M+1': 0 }
+        for _, row in perf_df.iterrows():
+            for k in sums.keys():
+                kw = "M+1" if k == "M+1" else k.replace("(일)","(일)").replace("(월)","(월)") 
+                if k == "계약금액(월)": kw = "계약금액"
+                if k == "당월매출 누계": kw = "당월매출"
+                for c in df_cols:
+                    if kw in c.replace(" ", ""):
+                        val = row[c]
+                        try:
+                            sums[k] += float(str(val).replace(',', '').replace('원', '').strip())
+                        except: pass
+                        break
+        res = {}
+        for k, v in sums.items():
+            res[k] = f"{int(v):,}" if v.is_integer() else f"{v:,.1f}"
+        res['계약율'] = "-" # 전체합산에서는 단순 퍼센트 합이 무의미하므로 처리
+        return res
+    else:
+        possible_ids = [str(target_id)]
+        try: possible_ids.append(str(int(target_id))) 
+        except: pass
+        
+        for _, row in perf_df.iterrows():
+            row_str = [str(x).strip() for x in row.values]
+            if any(pid in row_str for pid in possible_ids):
+                return {
+                    '견적건(일)': extract(row, '견적건(일)'),
+                    '견적건(월)': extract(row, '견적건(월)'),
+                    '계약건(일)': extract(row, '계약건(일)'),
+                    '계약건(월)': extract(row, '계약건(월)'),
+                    '계약율': extract(row, '계약율'),
+                    '계약금액(월)': extract(row, '계약금액'),
+                    '당월매출 누계': extract(row, '당월매출'),
+                    'M+1': extract(row, 'M+1')
+                }
+        return default
+
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
@@ -268,10 +367,8 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
                 safe_row = []
                 for cell in row:
                     cell_str = str(cell)
-                    if cell_str.strip().lower() in ['nan', 'none', 'nat', '<na>']:
-                        safe_row.append("")
-                    else:
-                        safe_row.append(cell_str)
+                    if cell_str.strip().lower() in ['nan', 'none', 'nat', '<na>']: safe_row.append("")
+                    else: safe_row.append(cell_str)
                 safe_list.append(safe_row)
             return safe_list
 
@@ -281,54 +378,39 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
                 group_df = df[df['HC명'] == name]
                 sheet = get_or_create_sheet(spreadsheet, name)
                 sheet.clear()
-                if not group_df.empty:
-                    sheet.update('A1', _prepare_safe_list(group_df))
-                else:
-                    sheet.update('A1', headers)
+                if not group_df.empty: sheet.update('A1', _prepare_safe_list(group_df))
+                else: sheet.update('A1', headers)
             return True
         else:
             sheet = get_or_create_sheet(spreadsheet, current_user)
             my_df = df[df['HC명'] == current_user]
             sheet.clear()
-            if not my_df.empty:
-                sheet.update('A1', _prepare_safe_list(my_df))
-            else:
-                sheet.update('A1', headers)
+            if not my_df.empty: sheet.update('A1', _prepare_safe_list(my_df))
+            else: sheet.update('A1', headers)
             return True
     except Exception as e:
         st.error(f"구글 시트 저장 실패: {e}")
         return False
 
-# 초기 데이터 로드
 if 'data' not in st.session_state:
     if client:
         st.session_state['data'] = load_data_from_sheet(client, is_master, my_name)
     else:
         st.session_state['data'] = clean_and_enforce_types(None)
 
-# ImgBB 업로드 함수
 def upload_to_imgbb(file_obj, file_name):
     try:
         if IMGBB_API_KEY == "여기에_IMGBB_API_키_붙여넣기":
             st.error("🚨 코드 상단에 ImgBB API 키를 먼저 입력해주세요!")
             return None
-            
         url = "https://api.imgbb.com/1/upload"
         encoded_image = base64.b64encode(file_obj.read()).decode("utf-8")
-        
-        data = {
-            "key": IMGBB_API_KEY,
-            "image": encoded_image,
-            "name": file_name.split('.')[0]
-        }
-        
+        data = { "key": IMGBB_API_KEY, "image": encoded_image, "name": file_name.split('.')[0] }
         data_encoded = urllib.parse.urlencode(data).encode("utf-8")
         req = urllib.request.Request(url, data=data_encoded)
-        
         with urllib.request.urlopen(req) as response:
             res_json = json.loads(response.read().decode("utf-8"))
-            if res_json.get("success"):
-                return res_json["data"]["url"]
+            if res_json.get("success"): return res_json["data"]["url"]
             else:
                 st.error("이미지 서버에서 업로드를 거절했습니다.")
                 return None
@@ -336,7 +418,6 @@ def upload_to_imgbb(file_obj, file_name):
         st.error(f"사진 업로드 중 오류 발생: {e}")
         return None
 
-# --- 정밀 상품 파싱 함수 ---
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines = []
@@ -427,10 +508,8 @@ def add_quotes_callback():
             new_df = clean_and_enforce_types(new_df)
             latest_df = load_data_from_sheet(client, is_master, my_name)
             
-            if not latest_df.empty:
-                updated_df = pd.concat([latest_df, new_df], ignore_index=True)
-            else:
-                updated_df = new_df
+            if not latest_df.empty: updated_df = pd.concat([latest_df, new_df], ignore_index=True)
+            else: updated_df = new_df
                 
             updated_df = updated_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
             updated_df = clean_and_enforce_types(updated_df)
@@ -439,12 +518,11 @@ def add_quotes_callback():
                 st.session_state['data'] = updated_df
                 target_msg = "견적" if is_master else "본인의 견적"
                 st.session_state['success_msg'] = f"✅ 성공적으로 {target_msg} {len(new_df)}건을 추가하고 구글 시트에 실시간 반영했습니다!"
+                st.session_state['uploader_key'] += 1
         else:
             st.session_state['warning_msg'] = "추가된 견적이 없습니다."
         
-        if skipped > 0:
-            st.session_state['warning_msg'] = f"🚨 타 사원의 견적 {skipped}건은 권한이 없어 자동으로 제외되었습니다."
-        
+        if skipped > 0: st.session_state['warning_msg'] = f"🚨 타 사원의 견적 {skipped}건은 권한이 없어 자동으로 제외되었습니다."
         st.session_state['raw_input_area'] = ""
 
 col_head_left, col_head_right = st.columns([2, 1])
@@ -455,10 +533,8 @@ with col_head_left:
 with col_head_right:
     sub_col1, sub_col2 = st.columns([3, 1])
     with sub_col1:
-        if is_master:
-            st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👤 {my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
+        if is_master: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
+        else: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👤 {my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
         if st.button("로그아웃"):
             st.session_state['logged_in'] = False
@@ -476,36 +552,31 @@ with input_col1:
 with input_col2:
     with st.expander("📸 TM 증빙 사진 초고속 업로드", expanded=True):
         temp_df = st.session_state['data']
-        if not is_master:
-            temp_df = temp_df[temp_df['HC_ID'] == my_id]
+        if not is_master: temp_df = temp_df[temp_df['HC_ID'] == my_id]
         
         if not temp_df.empty:
-            quote_list = temp_df['상담일'].astype(str) + " | " + temp_df['고객명'] + " (" + temp_df['상담번호'] + ")"
-            sel_quote = st.selectbox("증빙을 추가할 견적 선택", quote_list.tolist())
-            sel_tm = st.radio("TM 차수 선택", ["1차_증빙", "2차_증빙", "3차_증빙"], horizontal=True)
-            uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'])
+            quote_list = ["--- 견적을 선택하세요 ---"] + (temp_df['상담일'].astype(str) + " | " + temp_df['고객명'] + " (" + temp_df['상담번호'] + ")").tolist()
+            sel_quote = st.selectbox("증빙을 추가할 견적 선택", quote_list, key=f"quote_sel_{st.session_state['uploader_key']}")
+            sel_tm = st.radio("TM 차수 선택", ["1차_증빙", "2차_증빙", "3차_증빙"], horizontal=True, key=f"tm_sel_{st.session_state['uploader_key']}")
+            uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기 (JPG, PNG)", type=['jpg', 'jpeg', 'png'], key=f"img_uploader_{st.session_state['uploader_key']}")
             
             if st.button("🚀 사진 업로드 및 저장", type="primary"):
-                if IMGBB_API_KEY == "여기에_IMGBB_API_키_붙여넣기":
-                    st.error("🚨 앱 코드 상단에 ImgBB API 키를 먼저 입력해주세요!")
-                elif uploaded_img and sel_quote:
+                if sel_quote == "--- 견적을 선택하세요 ---": st.warning("견적을 먼저 선택해주세요!")
+                elif not uploaded_img: st.warning("사진을 올려주세요!")
+                else:
                     q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
-                    
                     with st.spinner("이미지 전용 서버(ImgBB)에 초고속으로 전송 중입니다..."):
                         file_obj = io.BytesIO(uploaded_img.read())
                         filename = f"{q_no}_{sel_tm}_{today.strftime('%Y%m%d')}.jpg"
-                        
                         img_url = upload_to_imgbb(file_obj, filename)
                         
                         if img_url:
                             st.session_state['data'].loc[st.session_state['data']['상담번호'] == q_no, sel_tm] = img_url
                             if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
                                 st.success("✅ 사진이 성공적으로 업로드되었고, 시트에 🔗사진보기 링크가 등록되었습니다!")
+                                st.session_state['uploader_key'] += 1
                                 st.rerun()
-                            else:
-                                st.error("사진 업로드는 성공했으나, 구글 시트 저장에 실패했습니다.")
-                else:
-                    st.warning("견적을 선택하고 사진을 업로드해주세요!")
+                            else: st.error("사진 업로드는 성공했으나, 구글 시트 저장에 실패했습니다.")
         else:
             st.info("먼저 견적을 등록해주세요!")
 
@@ -522,12 +593,10 @@ if is_master:
     if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "전체보기"
     all_hc_list = ["전체보기"] + [f"{info['name']} ({info['dealer']})" for info in HC_DB.values()]
     selected_hc = st.selectbox("영업사원 필터링 (구글 시트 탭 전체조회)", all_hc_list, key="selected_hc")
-    
     if selected_hc != "전체보기":
         st.session_state['data']['HC_대리점'] = st.session_state['data']['HC명'] + " (" + st.session_state['data']['대리점명'] + ")"
         my_df = st.session_state['data'][st.session_state['data']['HC_대리점'] == selected_hc].copy()
-    else:
-        my_df = st.session_state['data'].copy()
+    else: my_df = st.session_state['data'].copy()
 else:
     my_df = st.session_state['data'][st.session_state['data']['HC_ID'] == my_id].copy()
 
@@ -539,14 +608,14 @@ if total_quotes > 0:
         if row['3차_TM']: tm3_count += 1
         elif row['2차_TM']: tm2_count += 1
         elif row['1차_TM']: tm1_count += 1
-    
     total_tm_done = tm1_count + tm2_count + tm3_count 
     contract_count = int(my_df['계약완료'].sum())
 
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-st.subheader("📈 실시간 요약 지표")
+# --- [개편] 견적 관리 지표 UI ---
+st.subheader("📈 견적 관리 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
 m1.metric(title_text, f"{total_quotes}건")
@@ -556,19 +625,55 @@ m4.metric("3차 TM 완료", f"{tm3_count}건")
 m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
 m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
+st.markdown("<br>", unsafe_allow_html=True)
+
+# --- [신규] 영업 실적 현황 (당일 기준) '시트1' 연동 로직 ---
+st.subheader("🏆 영업 실적 현황 (당일 기준)")
+
+# 시트1 데이터 가져오기
+perf_df = load_perf_sheet(client)
+
+# 조회할 영업사원 ID 타겟팅
+if is_master:
+    if selected_hc == "전체보기": target_id = "ALL"
+    else:
+        target_name = selected_hc.split(" (")[0]
+        target_id = "ALL"
+        for k, v in HC_DB.items():
+            if v['name'] == target_name:
+                target_id = k
+                break
+else:
+    target_id = my_id
+
+perf_metrics = get_perf_metrics(perf_df, target_id)
+
+# 8개의 데이터를 4개씩 2줄로 예쁘게 배치
+pm1, pm2, pm3, pm4 = st.columns(4)
+pm1.metric("견적건(일)", perf_metrics.get('견적건(일)', '0'))
+pm2.metric("견적건(월)", perf_metrics.get('견적건(월)', '0'))
+pm3.metric("계약건(일)", perf_metrics.get('계약건(일)', '0'))
+pm4.metric("계약건(월)", perf_metrics.get('계약건(월)', '0'))
+
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # 줄 간격 띄우기
+
+pm5, pm6, pm7, pm8 = st.columns(4)
+pm5.metric("계약율", perf_metrics.get('계약율', '0%'))
+pm6.metric("계약금액(월)", perf_metrics.get('계약금액(월)', '0'))
+pm7.metric("당월매출 누계", perf_metrics.get('당월매출 누계', '0'))
+pm8.metric("익월 매출", perf_metrics.get('M+1', '0')) # M+1을 익월 매출로 변경하여 렌더링
+
 st.markdown("---")
 
 st.subheader("📋 견적 및 TM 목록")
 
-# --- 버튼을 표 위로 올리기 위한 레이아웃 분할 ---
 action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
 
 with action_col1:
     filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"])
 
 display_df = my_df.copy()
-if filter_tab == "본인 작성 견적만 보기":
-    display_df = display_df[display_df['is_self'] == True]
+if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
 column_order = [
     "선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액",
@@ -598,26 +703,21 @@ if not display_df.empty:
             "연락처": st.column_config.TextColumn("연락처", width="medium"),
             "주소": st.column_config.TextColumn("주소", width="medium"),
             "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"),
-            
             "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
             "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"),
             "1차_증빙": st.column_config.LinkColumn("1차 증빙", display_text="🔗 사진보기", width="small"),
-            
             "2차_TM": st.column_config.CheckboxColumn("2차", width="small"),
             "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
             "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"),
-            
             "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
             "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"),
             "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
-            
             "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"),
             "상담메모": st.column_config.TextColumn("상담메모", width="large")
         },
         num_rows="dynamic", hide_index=True, use_container_width=True, height=550
     )
     
-    # --- [상단 위치에 렌더링된 버튼들의 실제 동작 로직 실행] ---
     with action_col2:
         st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
         if st.button("1번 - 견적리스트 내용 완전 삭제하기\n(단순 수정X - 단순 수정은 수정 후 2번 클릭)", use_container_width=True):
@@ -626,12 +726,11 @@ if not display_df.empty:
                 with st.spinner("구글 시트에서 완전 삭제 중입니다... 🔄"):
                     st.session_state['data'] = st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_delete_nos)]
                     st.session_state['data'] = clean_and_enforce_types(st.session_state['data'])
-                    
                     if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
                         st.success(f"✅ {len(to_delete_nos)}건의 견적이 완전히 삭제되었습니다!")
+                        st.session_state['uploader_key'] += 1
                         st.rerun()
-            else:
-                st.warning("삭제할 항목의 맨 앞 '선택/삭제' 칸에 먼저 체크해주세요!")
+            else: st.warning("삭제할 항목의 맨 앞 '선택/삭제' 칸에 먼저 체크해주세요!")
 
     with action_col3:
         st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
@@ -639,17 +738,15 @@ if not display_df.empty:
             with st.spinner("구글 시트에 업데이트 중입니다... 🔄"):
                 global_df = st.session_state['data'].copy()
                 global_df = global_df.drop(display_df.index, errors='ignore')
-                
                 edited_df_to_keep = edited_df[~edited_df['선택/삭제']].copy()
                 edited_df_to_keep['선택/삭제'] = False 
-                
                 new_global_df = pd.concat([global_df, edited_df_to_keep])
                 new_global_df = new_global_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
                 new_global_df = clean_and_enforce_types(new_global_df)
-                
                 if save_data_to_sheet(client, new_global_df, is_master, my_name):
                     st.session_state['data'] = new_global_df
                     st.success("✅ 구글 시트의 해당 탭에 완벽하게 저장되었습니다!")
+                    st.session_state['uploader_key'] += 1
                     st.rerun()
 
 else:
