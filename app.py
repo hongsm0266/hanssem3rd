@@ -337,7 +337,9 @@ def parse_product_summary(block):
     for l in lines:
         if l in ["상담 상품", "상품정보"]: in_prod = True; continue
         if l in ["구매 동기", "할인혜택 적용", "시방서", "시방서 (선택)"]: in_prod = False
+        
         if l.lower() == 'goods': continue
+        
         if in_prod and not re.search(r'^\d+$', l) and not re.search(r'[\d,]+원$', l) and l not in ["홈퍼니싱 솔루션", "홈플래너 설계"] and not re.match(r'^\d{6,}$', l) and len(l) > 3 and "고객님" not in l and "상담" not in l and "견적" not in l: 
             prod_lines.append(l)
 
@@ -347,11 +349,13 @@ def parse_product_summary(block):
         if "책상" in p and "의자" in p:
             res.append("책상의자 - 알로/조이")
             continue
+        
         for cat, keywords in PRODUCT_KEYWORDS.items():
             if any(k in p for k in keywords):
                 res.append(cat)
                 matched = True
                 break
+                
         if not matched:
             if "책상" in p: res.append("자녀방 책상")
             else: res.append("기타(홈퍼니싱)")
@@ -387,6 +391,7 @@ def parse_raw_text(text, master_mode):
             ph_m = re.search(r'휴대폰 번호\n([\d-]+)', block)
             ad_m = re.search(r'주소\n(.+)', block)
             ty_m = re.search(r'현장 유형\n([^\n]+)', block)
+            
             cat_summary, detail_str = parse_product_summary(block)
             
             records.append({
@@ -498,7 +503,6 @@ contract_count = int(my_df['계약완료'].sum()) if total_quotes > 0 else 0
 tm_rate = ((tm1_count + tm2_count + tm3_count) / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-
 # --- 영업 실적 현황 ---
 st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
@@ -584,7 +588,7 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] 텍스트 기반의 명확한 '누락 알림' 전용 기둥 생성 로직
+# 💡 [핵심] 1차 TM 바로 앞에 딱 '1칸'만 추가하여 누락 내용을 요약 브리핑!
 if not display_df.empty:
     alert_list = []
     for _, row in display_df.iterrows():
@@ -600,19 +604,19 @@ if not display_df.empty:
                 
                 if missing: msgs.append(f"{i}차({','.join(missing)})")
         
-        if msgs: alert_list.append("🚨누락: " + " ".join(msgs))
+        if msgs: alert_list.append(" ".join(msgs))
         else: alert_list.append("")
         
-    display_df.insert(1, '🚨 누락 알림', alert_list)
+    display_df['🚨 TM누락 확인'] = alert_list
 
-col_order = ["선택/삭제", "🚨 누락 알림", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "🚨 누락 알림", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
+# 💡 TM누락 확인 기둥을 1차_TM 바로 앞으로 순서 변경
+col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
     st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>상세 견적 목록 (삭제: 체크 후 1번 누름 / 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
-        "🚨 누락 알림": st.column_config.TextColumn("🚨 누락 알림", width="medium", disabled=True), 
         "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
         "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), 
         "고객명": st.column_config.TextColumn("고객명", width="small"),
@@ -622,6 +626,7 @@ if not display_df.empty:
         "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="medium", help="더블클릭하여 전체 내용을 확인하세요."),
         "현장유형": st.column_config.TextColumn("현장유형", width="small"),
         "견적금액": st.column_config.NumberColumn("견적금액", format="%,d", width="small"), 
+        "🚨 TM누락 확인": st.column_config.TextColumn("🚨 TM누락 확인", width="small", disabled=True), 
         "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
         "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"), 
         "1차_증빙": st.column_config.LinkColumn("1차 증빙", display_text="🔗보기", width="small"),
@@ -650,7 +655,7 @@ if not display_df.empty:
         if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
             with st.spinner("저장 중..."):
                 tdf = edited_df.copy()
-                if '🚨 누락 알림' in tdf.columns: tdf = tdf.drop(columns=['🚨 누락 알림']) # 💡 시트에 저장될 때는 알림 기둥 삭제
+                if '🚨 TM누락 확인' in tdf.columns: tdf = tdf.drop(columns=['🚨 TM누락 확인']) # 💡 시트 저장 시 임시 기둥 파기
                 tdf['선택/삭제'] = False 
                 
                 global_df = st.session_state['data'].copy()
