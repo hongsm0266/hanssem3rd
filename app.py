@@ -72,7 +72,6 @@ st.markdown("""
         background: linear-gradient(180deg, #facc15 0%, #eab308 100%) !important; border-bottom: 4px solid #a16207 !important; color: #1c1917 !important;
     }
 
-    /* 하단 기본 Metric CSS */
     [data-testid="stMetric"] { 
         background: #ffffff !important; border: 2px solid #cbd5e1 !important; border-left: 6px solid #2563eb !important; 
         border-radius: 10px !important; padding: 10px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important; 
@@ -80,7 +79,6 @@ st.markdown("""
     [data-testid="stMetricLabel"] { font-size: 14px !important; font-weight: 800 !important; color: #1e3a8a !important; }
     [data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 900 !important; color: #dc2626 !important; }
 
-    /* 💡 커스텀 통합 Metric CSS (상단 8칸 전용) */
     .custom-metric {
         background: #ffffff; border: 2px solid #cbd5e1; border-left: 6px solid #2563eb;
         border-radius: 10px; padding: 10px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
@@ -178,7 +176,6 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
             return clean_and_enforce_types(pd.DataFrame(records) if records else None)
     except Exception as e: return clean_and_enforce_types(None)
 
-# 💡 [핵심] B30:AG70 (B=0, F=4, G=5, H=6, I=7, J=8, R=16, T=18, U=19, Y=23) 강제 추출!
 @st.cache_data(ttl=5) 
 def load_perf_sheet(_gc_client):
     try:
@@ -207,14 +204,14 @@ def get_perf_metrics(perf_df, target_id, target_name):
         for _, row in perf_df.iterrows():
             vals = row.values
             if len(vals) < 24: continue
-            sums['F'] += clean_val(vals[4])  # 견적일
-            sums['G'] += clean_val(vals[5])  # 계약일
-            sums['H'] += clean_val(vals[6])  # 견적월
-            sums['I'] += clean_val(vals[7])  # 계약월
-            sums['R'] += clean_val(vals[16]) # 계약금액
-            sums['T'] += clean_val(vals[18]) # 당월매출
-            sums['U'] += clean_val(vals[19]) # 전월매출
-            sums['Y'] += clean_val(vals[23]) # 익월매출
+            sums['F'] += clean_val(vals[4])
+            sums['G'] += clean_val(vals[5])
+            sums['H'] += clean_val(vals[6])
+            sums['I'] += clean_val(vals[7])
+            sums['R'] += clean_val(vals[16])
+            sums['T'] += clean_val(vals[18])
+            sums['U'] += clean_val(vals[19])
+            sums['Y'] += clean_val(vals[23])
         return sums
     else:
         possible_ids = [str(target_id), target_name]
@@ -402,7 +399,7 @@ tm_rate = ((tm1_count + tm2_count + tm3_count) / total_quotes * 100) if total_qu
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
 
-# --- 🏆 1. 영업 실적 현황 (당일 기준) ---
+# --- 🏆 영업 실적 현황 ---
 st.subheader("🏆 영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
@@ -414,7 +411,6 @@ metrics = get_perf_metrics(perf_df, target_id, target_name_perf)
 def fmt(n): return f"{int(round(n)):,}"
 def render_metric(label, v_html): return f'<div class="custom-metric"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{v_html}</div></div>'
 
-# 💡 계산 로직 & 포매팅
 F_str, G_str, H_str, I_str = fmt(metrics['F']), fmt(metrics['G']), fmt(metrics['H']), fmt(metrics['I'])
 J_str = f"{int(round(metrics['J']))}%" if target_id != "ALL" else "-"
 R_str, Y_str = fmt(metrics['R']), fmt(metrics['Y'])
@@ -428,11 +424,9 @@ if metrics['U'] > 0:
     elif growth < 0: growth_html = f'<span style="color:#2563eb; font-size:15px; margin-left:6px;">(▼ {g_pct}%)</span>'
     else: growth_html = f'<span style="color:#64748b; font-size:15px; margin-left:6px;">(- 0%)</span>'
 
-# 💡 7번째 칸 하이브리드 조합
-combined_lbl = '<span style="color:#dc2626;">당월매출누계</span> <span style="color:#64748b;">/</span> <span style="color:#2563eb;">전월동일자</span>'
+combined_lbl = '<span style="color:#dc2626;">당월매출</span> <span style="color:#64748b;">/</span> <span style="color:#2563eb;">전월동일자</span>'
 combined_val = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#64748b; font-size:16px; margin:0 3px;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
 
-# 💡 황금 비율 배분 (글자가 잘리지 않게 7번째 칸(2.2)을 길게 배정)
 cols_perf = st.columns([0.85, 1, 0.85, 1, 0.7, 1.2, 2.2, 1])
 cols_perf[0].markdown(render_metric("견적건(일)", F_str), unsafe_allow_html=True)
 cols_perf[1].markdown(render_metric("견적건(월누적)", H_str), unsafe_allow_html=True)
@@ -445,7 +439,7 @@ cols_perf[7].markdown(render_metric("익월 매출", Y_str), unsafe_allow_html=T
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- 📈 2. 견적 관리 지표 ---
+# --- 📈 견적 관리 지표 ---
 st.subheader("📈 견적 관리 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("총 견적 건수" if is_master else "내 총 견적 건수", f"{total_quotes}건")
@@ -456,7 +450,6 @@ m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
 m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
-
 st.subheader("📋 견적 및 TM 목록")
 
 action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
@@ -468,7 +461,9 @@ if filter_tab == "본인 작성 견적만 보기": display_df = display_df[displ
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (수정 후 반드시 상단의 2번 노란색 저장 버튼을 누르세요)</div>", unsafe_allow_html=True)
+    # 💡 [핵심] 중복 체크박스 제거를 위해 숨겨진 설정(hide_index 등) 유지 및 배너 문구 변경
+    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (완전 삭제는 1번 클릭 / 수정 후 이어서 저장·덮어쓰기는 2번 클릭)</div>", unsafe_allow_html=True)
+    
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
         "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), "고객명": st.column_config.TextColumn("고객명", width="medium"),
@@ -478,11 +473,11 @@ if not display_df.empty:
         "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"), "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
         "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large")
-    }, num_rows="dynamic", hide_index=True, use_container_width=True, height=550)
+    }, hide_index=True, use_container_width=True, height=550) # 💡 num_rows="dynamic" 삭제 완료 (중복 삭제 체크박스 방지)
     
     with action_col2:
         st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
-        if st.button("1번 - 견적리스트 내용 완전 삭제하기\n(단순 수정X - 단순 수정은 수정 후 2번 클릭)", use_container_width=True):
+        if st.button("1번 - 견적리스트 내용 완전 삭제하기", use_container_width=True):
             to_del = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
             if to_del:
                 with st.spinner("삭제 중..."):
@@ -494,7 +489,16 @@ if not display_df.empty:
         st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
         if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
             with st.spinner("저장 중..."):
-                tdf = edited_df[~edited_df['선택/삭제']].copy(); tdf['선택/삭제'] = False 
-                ndf = clean_and_enforce_types(pd.concat([st.session_state['data'].drop(display_df.index, errors='ignore'), tdf]).sort_values('상담일').reset_index(drop=True))
-                if save_data_to_sheet(client, ndf, is_master, my_name): st.session_state['data'] = ndf; st.success("✅ 저장 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
+                tdf = edited_df.copy()
+                tdf['선택/삭제'] = False # 💡 로직 검증 완료: 2번은 무조건 내용 덮어쓰기 & 체크박스 초기화
+                
+                global_df = st.session_state['data'].copy()
+                global_df = global_df.drop(display_df.index, errors='ignore')
+                new_global_df = clean_and_enforce_types(pd.concat([global_df, tdf]).sort_values('상담일').reset_index(drop=True))
+                
+                if save_data_to_sheet(client, new_global_df, is_master, my_name): 
+                    st.session_state['data'] = new_global_df
+                    st.success("✅ 안전하게 전체 수정사항이 덮어쓰기 되었습니다!")
+                    st.session_state['uploader_key'] += 1
+                    st.rerun()
 else: st.info("데이터가 없습니다. 견적을 추가해주세요!")
