@@ -46,7 +46,7 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (지표 사이즈 8칸 최적화 및 3D 버튼 효과) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -62,7 +62,6 @@ st.markdown("""
     .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 800 !important; margin-top: 15px; margin-bottom: 5px; }
     .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
     
-    /* 3D 버튼 효과 */
     div.stButton > button { 
         background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important; 
         color: white !important; 
@@ -91,7 +90,6 @@ st.markdown("""
         margin-bottom: 3px !important;
     }
     
-    /* 삭제 버튼 (빨강) */
     div.element-container:has(.red-btn) + div.element-container div.stButton > button {
         background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
         border-bottom: 4px solid #991b1b !important;
@@ -100,7 +98,6 @@ st.markdown("""
     div.element-container:has(.red-btn) + div.element-container div.stButton > button:hover { background: linear-gradient(180deg, #f87171 0%, #ef4444 100%) !important; }
     div.element-container:has(.red-btn) + div.element-container div.stButton > button:active { border-bottom: 1px solid #991b1b !important; }
 
-    /* 저장 버튼 (노랑) */
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button {
         background: linear-gradient(180deg, #facc15 0%, #eab308 100%) !important;
         border-bottom: 4px solid #a16207 !important;
@@ -109,7 +106,6 @@ st.markdown("""
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:hover { background: linear-gradient(180deg, #fde047 0%, #facc15 100%) !important; }
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:active { border-bottom: 1px solid #a16207 !important; }
 
-    /* 💡 지표(Metric) 사이즈 최적화 (한 줄 8칸 배치용으로 1사이즈 축소) */
     [data-testid="stMetric"] { 
         background: #ffffff !important; 
         border: 2px solid #cbd5e1 !important; 
@@ -128,7 +124,7 @@ st.markdown("""
         text-overflow: ellipsis !important;
     }
     [data-testid="stMetricValue"] { 
-        font-size: 22px !important; /* 크기 한 단계 축소 */
+        font-size: 22px !important; 
         font-weight: 900 !important; 
         color: #dc2626 !important; 
     }
@@ -290,7 +286,7 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-@st.cache_data(ttl=300) 
+@st.cache_data(ttl=5) 
 def load_perf_sheet(_gc_client):
     try:
         spreadsheet = _gc_client.open(SHEET_NAME)
@@ -299,20 +295,35 @@ def load_perf_sheet(_gc_client):
     except Exception:
         return pd.DataFrame()
 
-def get_perf_metrics(perf_df, target_id):
+# 💡 [핵심] 시트1 소수점 반올림 및 절삭 처리 완벽 적용
+def get_perf_metrics(perf_df, target_id, target_name):
     default = { '견적건(일)': '0', '견적건(월)': '0', '계약건(일)': '0', '계약건(월)': '0', '계약율': '0%', '계약금액(월)': '0', '당월매출 누계': '0', 'M+1': '0' }
     if perf_df is None or perf_df.empty: return default
     df_cols = perf_df.columns
     
-    def extract(row, kw):
+    def extract(row, kw_list):
         for c in df_cols:
-            if kw in c.replace(" ", ""):
+            clean_c = str(c).replace(" ", "")
+            if any(kw in clean_c for kw in kw_list):
                 val = row[c]
                 if pd.isna(val) or val == "": return "0"
-                if kw == "계약율": return str(val)
+                
+                # 💡 퍼센트(비율)일 경우 소수점 반올림 후 % 붙임
+                if "율" in kw_list[0] or "률" in kw_list[0]: 
+                    try:
+                        clean_val = str(val).replace('%', '').replace(',', '').strip()
+                        fval = float(clean_val)
+                        # 혹시 시트에 0.85로 적혀있으면 85로 변환
+                        if 0 < fval <= 1.0 and "%" not in str(val):
+                            fval = fval * 100
+                        return f"{int(round(fval))}%"
+                    except:
+                        return str(val) if "%" in str(val) else f"{val}%"
+                
+                # 💡 일반 숫자(금액, 건수)일 경우 소수점 반올림 후 정수로 절삭
                 try:
                     fval = float(str(val).replace(',', '').replace('원', '').strip())
-                    return f"{int(fval):,}" if fval.is_integer() else f"{fval:,.1f}"
+                    return f"{int(round(fval)):,}"
                 except:
                     return str(val)
         return "0"
@@ -321,38 +332,41 @@ def get_perf_metrics(perf_df, target_id):
         sums = { '견적건(일)': 0, '견적건(월)': 0, '계약건(일)': 0, '계약건(월)': 0, '계약금액(월)': 0, '당월매출 누계': 0, 'M+1': 0 }
         for _, row in perf_df.iterrows():
             for k in sums.keys():
-                kw = "M+1" if k == "M+1" else k.replace("(일)","(일)").replace("(월)","(월)") 
-                if k == "계약금액(월)": kw = "계약금액"
-                if k == "당월매출 누계": kw = "당월매출"
+                kw_list = []
+                if k == "M+1": kw_list = ["M+1", "익월매출"]
+                elif k == "계약금액(월)": kw_list = ["계약금액"]
+                elif k == "당월매출 누계": kw_list = ["당월매출", "누계매출"]
+                else: kw_list = [k.replace(" ", "")]
+                
                 for c in df_cols:
-                    if kw in c.replace(" ", ""):
+                    if any(kw in str(c).replace(" ", "") for kw in kw_list):
                         val = row[c]
-                        try:
-                            sums[k] += float(str(val).replace(',', '').replace('원', '').strip())
+                        try: sums[k] += float(str(val).replace(',', '').replace('원', '').strip())
                         except: pass
                         break
         res = {}
         for k, v in sums.items():
-            res[k] = f"{int(v):,}" if v.is_integer() else f"{v:,.1f}"
+            # 💡 총합산의 경우에도 완벽한 반올림 및 절삭
+            res[k] = f"{int(round(v)):,}"
         res['계약율'] = "-"
         return res
     else:
-        possible_ids = [str(target_id)]
+        possible_ids = [str(target_id), target_name]
         try: possible_ids.append(str(int(target_id))) 
         except: pass
         
         for _, row in perf_df.iterrows():
-            row_str = [str(x).strip() for x in row.values]
+            row_str = "".join([str(x).strip() for x in row.values])
             if any(pid in row_str for pid in possible_ids):
                 return {
-                    '견적건(일)': extract(row, '견적건(일)'),
-                    '견적건(월)': extract(row, '견적건(월)'),
-                    '계약건(일)': extract(row, '계약건(일)'),
-                    '계약건(월)': extract(row, '계약건(월)'),
-                    '계약율': extract(row, '계약율'),
-                    '계약금액(월)': extract(row, '계약금액'),
-                    '당월매출 누계': extract(row, '당월매출'),
-                    'M+1': extract(row, 'M+1')
+                    '견적건(일)': extract(row, ['견적건(일)', '견적(일)', '일견적']),
+                    '견적건(월)': extract(row, ['견적건(월)', '견적(월)', '월견적']),
+                    '계약건(일)': extract(row, ['계약건(일)', '계약(일)', '일계약']),
+                    '계약건(월)': extract(row, ['계약건(월)', '계약(월)', '월계약']),
+                    '계약율': extract(row, ['계약율', '계약률']),
+                    '계약금액(월)': extract(row, ['계약금액']),
+                    '당월매출 누계': extract(row, ['당월매출', '누계매출']),
+                    'M+1': extract(row, ['M+1', '익월매출', 'm+1'])
                 }
         return default
 
@@ -506,13 +520,10 @@ def add_quotes_callback():
         if not new_df.empty:
             new_df = clean_and_enforce_types(new_df)
             latest_df = load_data_from_sheet(client, is_master, my_name)
-            
             if not latest_df.empty: updated_df = pd.concat([latest_df, new_df], ignore_index=True)
             else: updated_df = new_df
-                
             updated_df = updated_df.sort_values(by='상담일', ascending=True).reset_index(drop=True)
             updated_df = clean_and_enforce_types(updated_df)
-            
             if save_data_to_sheet(client, updated_df, is_master, my_name):
                 st.session_state['data'] = updated_df
                 target_msg = "견적" if is_master else "본인의 견적"
@@ -520,7 +531,6 @@ def add_quotes_callback():
                 st.session_state['uploader_key'] += 1
         else:
             st.session_state['warning_msg'] = "추가된 견적이 없습니다."
-        
         if skipped > 0: st.session_state['warning_msg'] = f"🚨 타 사원의 견적 {skipped}건은 권한이 없어 자동으로 제외되었습니다."
         st.session_state['raw_input_area'] = ""
 
@@ -614,25 +624,26 @@ tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
 
-# --- 💡 [위치 변경] 1. 영업 실적 현황 패널을 가장 위로 배치 ---
 st.subheader("🏆 영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
 if is_master:
-    if selected_hc == "전체보기": target_id = "ALL"
+    if selected_hc == "전체보기": 
+        target_id = "ALL"
+        target_name_perf = "ALL"
     else:
-        target_name = selected_hc.split(" (")[0]
+        target_name_perf = selected_hc.split(" (")[0]
         target_id = "ALL"
         for k, v in HC_DB.items():
-            if v['name'] == target_name:
+            if v['name'] == target_name_perf:
                 target_id = k
                 break
 else:
     target_id = my_id
+    target_name_perf = my_name
 
-perf_metrics = get_perf_metrics(perf_df, target_id)
+perf_metrics = get_perf_metrics(perf_df, target_id, target_name_perf)
 
-# 💡 8칸 한 줄로 나란히 배치
 cols_perf = st.columns(8)
 cols_perf[0].metric("견적건(일)", perf_metrics.get('견적건(일)', '0'))
 cols_perf[1].metric("견적건(월)", perf_metrics.get('견적건(월)', '0'))
@@ -645,8 +656,6 @@ cols_perf[7].metric("익월 매출", perf_metrics.get('M+1', '0'))
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-
-# --- 💡 [위치 변경] 2. 견적 관리 지표 패널을 두 번째로 배치 ---
 st.subheader("📈 견적 관리 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
