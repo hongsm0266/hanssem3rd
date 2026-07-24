@@ -286,16 +286,31 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
+# 💡 [핵심] 시트1의 B30:AG70 구역만 정확히 타겟팅해서 읽어오는 기능
 @st.cache_data(ttl=5) 
 def load_perf_sheet(_gc_client):
     try:
         spreadsheet = _gc_client.open(SHEET_NAME)
         sheet = spreadsheet.worksheet("시트1")
-        return pd.DataFrame(sheet.get_all_records())
+        # 구글 시트에서 지정된 B30~AG70 범위의 데이터 덩어리를 통째로 가져오기
+        data = sheet.get("B30:AG70")
+        
+        if data and len(data) > 1:
+            headers = [str(h).strip() for h in data[0]] # 30행의 제목
+            rows = data[1:] # 31행부터 실제 데이터
+            
+            # 구글 API는 맨 끝에 빈칸이 있으면 배열을 잘라버리므로 방어 코드 추가
+            safe_rows = []
+            for r in rows:
+                safe_row = r + [''] * (len(headers) - len(r))
+                safe_rows.append(safe_row[:len(headers)])
+                
+            return pd.DataFrame(safe_rows, columns=headers)
+        else:
+            return pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
-# 💡 [핵심] 시트1 소수점 반올림 및 절삭 처리 완벽 적용
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { '견적건(일)': '0', '견적건(월)': '0', '계약건(일)': '0', '계약건(월)': '0', '계약율': '0%', '계약금액(월)': '0', '당월매출 누계': '0', 'M+1': '0' }
     if perf_df is None or perf_df.empty: return default
@@ -303,24 +318,22 @@ def get_perf_metrics(perf_df, target_id, target_name):
     
     def extract(row, kw_list):
         for c in df_cols:
-            clean_c = str(c).replace(" ", "")
+            # 띄어쓰기 및 줄바꿈 기호 완벽 제거 후 검색
+            clean_c = str(c).replace(" ", "").replace("\n", "")
             if any(kw in clean_c for kw in kw_list):
                 val = row[c]
                 if pd.isna(val) or val == "": return "0"
                 
-                # 💡 퍼센트(비율)일 경우 소수점 반올림 후 % 붙임
                 if "율" in kw_list[0] or "률" in kw_list[0]: 
                     try:
                         clean_val = str(val).replace('%', '').replace(',', '').strip()
                         fval = float(clean_val)
-                        # 혹시 시트에 0.85로 적혀있으면 85로 변환
                         if 0 < fval <= 1.0 and "%" not in str(val):
                             fval = fval * 100
                         return f"{int(round(fval))}%"
                     except:
                         return str(val) if "%" in str(val) else f"{val}%"
                 
-                # 💡 일반 숫자(금액, 건수)일 경우 소수점 반올림 후 정수로 절삭
                 try:
                     fval = float(str(val).replace(',', '').replace('원', '').strip())
                     return f"{int(round(fval)):,}"
@@ -339,14 +352,13 @@ def get_perf_metrics(perf_df, target_id, target_name):
                 else: kw_list = [k.replace(" ", "")]
                 
                 for c in df_cols:
-                    if any(kw in str(c).replace(" ", "") for kw in kw_list):
+                    if any(kw in str(c).replace(" ", "").replace("\n", "") for kw in kw_list):
                         val = row[c]
                         try: sums[k] += float(str(val).replace(',', '').replace('원', '').strip())
                         except: pass
                         break
         res = {}
         for k, v in sums.items():
-            # 💡 총합산의 경우에도 완벽한 반올림 및 절삭
             res[k] = f"{int(round(v)):,}"
         res['계약율'] = "-"
         return res
