@@ -139,15 +139,22 @@ def clean_and_enforce_types(df):
     req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']
     if df is None or df.empty:
         edf = pd.DataFrame(columns=req_cols)
-        edf['선택/삭제'] = edf['선택/삭제'].astype(bool); edf['견적금액'] = edf['견적금액'].astype(int)
+        for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: edf[col] = False
+        edf['견적금액'] = 0
         return edf
+    
     df = df.copy()
     for col in req_cols:
         if col not in df.columns: df[col] = False if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self'] else ''
+    
     for col in ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']:
         df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
         df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
-    for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: df[col] = df[col].fillna(False).astype(bool)
+        
+    # 💡 [핵심 버그 수정] 구글 시트에서 넘어온 글자 'FALSE' 등을 무조건 다 꺼버리도록(False) 강력한 세뇌 적용!
+    for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: 
+        df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' else False)
+        
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
     for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙']:
         df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
@@ -461,8 +468,8 @@ if filter_tab == "본인 작성 견적만 보기": display_df = display_df[displ
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    # 💡 [핵심] 중복 체크박스 제거를 위해 숨겨진 설정(hide_index 등) 유지 및 배너 문구 변경
-    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (완전 삭제는 1번 클릭 / 수정 후 이어서 저장·덮어쓰기는 2번 클릭)</div>", unsafe_allow_html=True)
+    # 💡 [핵심] 안내 문구를 아주 명확하고 직관적으로 변경!
+    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (🗑️ 삭제: 체크 후 1번 누름 / 📝 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
@@ -473,7 +480,7 @@ if not display_df.empty:
         "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"), "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
         "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large")
-    }, hide_index=True, use_container_width=True, height=550) # 💡 num_rows="dynamic" 삭제 완료 (중복 삭제 체크박스 방지)
+    }, hide_index=True, use_container_width=True, height=550) 
     
     with action_col2:
         st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
@@ -483,14 +490,14 @@ if not display_df.empty:
                 with st.spinner("삭제 중..."):
                     st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_del)])
                     if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("✅ 삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
-            else: st.warning("체크박스를 선택하세요!")
+            else: st.warning("삭제할 항목을 먼저 체크해 주세요!")
 
     with action_col3:
         st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
         if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
             with st.spinner("저장 중..."):
                 tdf = edited_df.copy()
-                tdf['선택/삭제'] = False # 💡 로직 검증 완료: 2번은 무조건 내용 덮어쓰기 & 체크박스 초기화
+                tdf['선택/삭제'] = False 
                 
                 global_df = st.session_state['data'].copy()
                 global_df = global_df.drop(display_df.index, errors='ignore')
