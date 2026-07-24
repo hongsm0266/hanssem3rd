@@ -220,7 +220,6 @@ def load_perf_sheet(_gc_client):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# 💡 [핵심 보완] 전체 합산 및 대리점별 인원 합산 로직을 완벽하게 재구성!
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
@@ -234,12 +233,11 @@ def get_perf_metrics(perf_df, target_id, target_name):
 
     if target_id == "ALL":
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
-        all_names = [v['name'] for v in HC_DB.values()] # 💡 전체 사원 이름 목록
+        all_names = [v['name'] for v in HC_DB.values()]
         for _, row in perf_df.iterrows():
             vals = row.values
             if len(vals) < 24: continue
             row_str = "".join([str(x).strip() for x in vals])
-            # 💡 이름 목록에 있는 사람의 행만 완벽하게 캐치해서 더함 (중복되는 소계/합계 방지)
             if any(n in row_str for n in all_names):
                 sums['F'] += clean_val(vals[4])
                 sums['G'] += clean_val(vals[5])
@@ -249,13 +247,12 @@ def get_perf_metrics(perf_df, target_id, target_name):
                 sums['T'] += clean_val(vals[18])
                 sums['U'] += clean_val(vals[19])
                 sums['Y'] += clean_val(vals[23])
-        # 전체 계약율 J 계산 (누적계약 / 누적견적)
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
     elif str(target_id).startswith("DEALER_"):
         dealer_name = str(target_id).replace("DEALER_", "")
-        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name] # 💡 특정 대리점 소속 사원들만
+        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name]
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
@@ -340,9 +337,7 @@ def parse_product_summary(block):
     for l in lines:
         if l in ["상담 상품", "상품정보"]: in_prod = True; continue
         if l in ["구매 동기", "할인혜택 적용", "시방서", "시방서 (선택)"]: in_prod = False
-        
         if l.lower() == 'goods': continue
-        
         if in_prod and not re.search(r'^\d+$', l) and not re.search(r'[\d,]+원$', l) and l not in ["홈퍼니싱 솔루션", "홈플래너 설계"] and not re.match(r'^\d{6,}$', l) and len(l) > 3 and "고객님" not in l and "상담" not in l and "견적" not in l: 
             prod_lines.append(l)
 
@@ -352,13 +347,11 @@ def parse_product_summary(block):
         if "책상" in p and "의자" in p:
             res.append("책상의자 - 알로/조이")
             continue
-        
         for cat, keywords in PRODUCT_KEYWORDS.items():
             if any(k in p for k in keywords):
                 res.append(cat)
                 matched = True
                 break
-                
         if not matched:
             if "책상" in p: res.append("자녀방 책상")
             else: res.append("기타(홈퍼니싱)")
@@ -370,7 +363,6 @@ def parse_product_summary(block):
         
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
     detail_str = " , ".join(prod_lines)
-    
     detail_str = re.sub(r'(?i)^goods\s*,\s*', '', detail_str)
     
     return cat_summary, detail_str
@@ -395,7 +387,6 @@ def parse_raw_text(text, master_mode):
             ph_m = re.search(r'휴대폰 번호\n([\d-]+)', block)
             ad_m = re.search(r'주소\n(.+)', block)
             ty_m = re.search(r'현장 유형\n([^\n]+)', block)
-            
             cat_summary, detail_str = parse_product_summary(block)
             
             records.append({
@@ -534,7 +525,6 @@ def fmt(n): return f"{int(round(n)):,}"
 def render_metric(label, v_html): return f'<div class="custom-metric"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{v_html}</div></div>'
 
 F_str, G_str, H_str, I_str = fmt(metrics['F']), fmt(metrics['G']), fmt(metrics['H']), fmt(metrics['I'])
-# 💡 [보완] 전체 합산 시에도 J(계약율) 값이 정상적으로 출력되도록 수정
 J_str = f"{int(round(metrics['J']))}%" 
 R_str, Y_str = fmt(metrics['R']), fmt(metrics['Y'])
 T_str, U_str = fmt(metrics['T']), fmt(metrics['U'])
@@ -574,7 +564,6 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# 💡 [핵심] 마스터 선택 시 나오는 하이라이트 박스 색상을 긍정적이고 잘보이는 파란색(스카이블루)로 변경!
 if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "🌟 전체보기 (모든 영업사원)":
     if "상권 전체보기" in st.session_state['selected_hc']:
         dealer_name = st.session_state['selected_hc'].split("[")[1].split("]")[0]
@@ -595,38 +584,35 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
-
-# 💡 [핵심] TM 체크 누락 시 (날짜나 증빙이 없을 때) 연한 빨간색으로 음영 처리하는 기능 추가
-def highlight_missing_tm(row):
-    styles = [''] * len(row)
-    cols = row.index.tolist()
-    for i in [1, 2, 3]:
-        tm_col = f'{i}차_TM'
-        date_col = f'{i}차_TM_일자'
-        proof_col = f'{i}차_증빙'
+# 💡 [핵심] 텍스트 기반의 명확한 '누락 알림' 전용 기둥 생성 로직
+if not display_df.empty:
+    alert_list = []
+    for _, row in display_df.iterrows():
+        msgs = []
+        for i in [1, 2, 3]:
+            if row.get(f'{i}차_TM') == True:
+                missing = []
+                d_val = row.get(f'{i}차_TM_일자')
+                p_val = row.get(f'{i}차_증빙')
+                
+                if pd.isna(d_val) or str(d_val).strip() in ['', 'None']: missing.append("일자")
+                if pd.isna(p_val) or str(p_val).strip() in ['', 'None']: missing.append("증빙")
+                
+                if missing: msgs.append(f"{i}차({','.join(missing)})")
         
-        if tm_col in cols and row[tm_col] == True:
-            # 날짜 누락 시 배경을 연한 빨강으로 표시
-            if date_col in cols:
-                val = row[date_col]
-                if pd.isna(val) or str(val).strip() == '' or str(val).strip() == 'None':
-                    styles[cols.index(date_col)] = 'background-color: #fee2e2;' 
-            # 증빙 누락 시 배경을 연한 빨강으로 표시
-            if proof_col in cols:
-                val = row[proof_col]
-                if pd.isna(val) or str(val).strip() == '' or str(val).strip() == 'None':
-                    styles[cols.index(proof_col)] = 'background-color: #fee2e2;'
-    return styles
+        if msgs: alert_list.append("🚨누락: " + " ".join(msgs))
+        else: alert_list.append("")
+        
+    display_df.insert(1, '🚨 누락 알림', alert_list)
+
+col_order = ["선택/삭제", "🚨 누락 알림", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "🚨 누락 알림", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
     st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>상세 견적 목록 (삭제: 체크 후 1번 누름 / 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
     
-    # 누락 데이터 자동 음영 로직 스타일 적용
-    styled_df = display_df.style.apply(highlight_missing_tm, axis=1)
-    
-    edited_df = st.data_editor(styled_df, column_order=col_order, column_config={
+    edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
+        "🚨 누락 알림": st.column_config.TextColumn("🚨 누락 알림", width="medium", disabled=True), 
         "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
         "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), 
         "고객명": st.column_config.TextColumn("고객명", width="small"),
@@ -664,6 +650,7 @@ if not display_df.empty:
         if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
             with st.spinner("저장 중..."):
                 tdf = edited_df.copy()
+                if '🚨 누락 알림' in tdf.columns: tdf = tdf.drop(columns=['🚨 누락 알림']) # 💡 시트에 저장될 때는 알림 기둥 삭제
                 tdf['선택/삭제'] = False 
                 
                 global_df = st.session_state['data'].copy()
