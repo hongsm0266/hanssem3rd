@@ -311,7 +311,6 @@ def parse_product_summary(block):
         if l in ["상담 상품", "상품정보"]: in_prod = True; continue
         if l in ["구매 동기", "할인혜택 적용", "시방서", "시방서 (선택)"]: in_prod = False
         
-        # 💡 [핵심] 'goods' 텍스트를 무시하여 세부품목 맨 앞에 추가되는 현상 제거
         if l.lower() == 'goods': continue
         
         if in_prod and not re.search(r'^\d+$', l) and not re.search(r'[\d,]+원$', l) and l not in ["홈퍼니싱 솔루션", "홈플래너 설계"] and not re.match(r'^\d{6,}$', l) and len(l) > 3 and "고객님" not in l and "상담" not in l and "견적" not in l: 
@@ -342,8 +341,8 @@ def parse_product_summary(block):
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
     detail_str = " , ".join(prod_lines)
     
-    # 💡 [안전장치] 혹시 텍스트 맨 앞에 goods, 패턴이 남아있다면 강제 제거
-    detail_str = re.sub(r'^(?i)goods\s*,\s*', '', detail_str)
+    # 💡 [버그 수정] 정규식 패턴 에러 방지 - (?i)를 맨 앞으로 이동
+    detail_str = re.sub(r'(?i)^goods\s*,\s*', '', detail_str)
     
     return cat_summary, detail_str
 
