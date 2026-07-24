@@ -46,7 +46,7 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (지표 디자인 대폭 강화) ---
+# --- 커스텀 CSS (지표 사이즈 8칸 최적화 및 3D 버튼 효과) ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -109,25 +109,28 @@ st.markdown("""
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:hover { background: linear-gradient(180deg, #fde047 0%, #facc15 100%) !important; }
     div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:active { border-bottom: 1px solid #a16207 !important; }
 
-    /* 💡 지표(Metric) 시인성 초강력 강화 세팅 */
+    /* 💡 지표(Metric) 사이즈 최적화 (한 줄 8칸 배치용으로 1사이즈 축소) */
     [data-testid="stMetric"] { 
         background: #ffffff !important; 
         border: 2px solid #cbd5e1 !important; 
-        border-left: 8px solid #2563eb !important; 
-        border-radius: 12px !important; 
-        padding: 15px 20px !important; 
-        box-shadow: 0 4px 10px rgba(0,0,0,0.06) !important; 
+        border-left: 6px solid #2563eb !important; 
+        border-radius: 10px !important; 
+        padding: 10px 10px !important; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important; 
     }
     [data-testid="stMetricLabel"] { 
-        font-size: 16px !important; 
+        font-size: 14px !important; 
         font-weight: 800 !important; 
         color: #1e3a8a !important; 
-        margin-bottom: 8px !important; 
+        margin-bottom: 4px !important; 
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     [data-testid="stMetricValue"] { 
-        font-size: 28px !important; 
+        font-size: 22px !important; /* 크기 한 단계 축소 */
         font-weight: 900 !important; 
-        color: #dc2626 !important; /* 숫자는 강렬한 빨간색 */
+        color: #dc2626 !important; 
     }
 
     .user-info-box { background-color: #f1f5f9; border: 2px solid #0284c7; padding: 12px 16px; border-radius: 8px; text-align: right; }
@@ -213,7 +216,6 @@ my_name = st.session_state['hc_name']
 my_dealer = st.session_state['dealer']
 is_master = st.session_state['is_master']
 
-# --- 데이터 타입 세탁 방어 코드 ---
 def clean_and_enforce_types(df):
     required_cols = [
         '선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', 
@@ -288,8 +290,7 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-# 💡 '시트1' (영업 실적) 실시간 연동 로직
-@st.cache_data(ttl=300) # 5분마다 자동 갱신 (부하 방지)
+@st.cache_data(ttl=300) 
 def load_perf_sheet(_gc_client):
     try:
         spreadsheet = _gc_client.open(SHEET_NAME)
@@ -308,7 +309,7 @@ def get_perf_metrics(perf_df, target_id):
             if kw in c.replace(" ", ""):
                 val = row[c]
                 if pd.isna(val) or val == "": return "0"
-                if kw == "계약율": return str(val) # 계약율은 % 문자열 그대로 출력
+                if kw == "계약율": return str(val)
                 try:
                     fval = float(str(val).replace(',', '').replace('원', '').strip())
                     return f"{int(fval):,}" if fval.is_integer() else f"{fval:,.1f}"
@@ -333,7 +334,7 @@ def get_perf_metrics(perf_df, target_id):
         res = {}
         for k, v in sums.items():
             res[k] = f"{int(v):,}" if v.is_integer() else f"{v:,.1f}"
-        res['계약율'] = "-" # 전체합산에서는 단순 퍼센트 합이 무의미하므로 처리
+        res['계약율'] = "-"
         return res
     else:
         possible_ids = [str(target_id)]
@@ -393,10 +394,8 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
         return False
 
 if 'data' not in st.session_state:
-    if client:
-        st.session_state['data'] = load_data_from_sheet(client, is_master, my_name)
-    else:
-        st.session_state['data'] = clean_and_enforce_types(None)
+    if client: st.session_state['data'] = load_data_from_sheet(client, is_master, my_name)
+    else: st.session_state['data'] = clean_and_enforce_types(None)
 
 def upload_to_imgbb(file_obj, file_name):
     try:
@@ -614,26 +613,11 @@ if total_quotes > 0:
 tm_rate = (total_tm_done / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
-# --- [개편] 견적 관리 지표 UI ---
-st.subheader("📈 견적 관리 지표")
-m1, m2, m3, m4, m5, m6 = st.columns(6)
-title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
-m1.metric(title_text, f"{total_quotes}건")
-m2.metric("1차 TM 완료", f"{tm1_count}건")
-m3.metric("2차 TM 완료", f"{tm2_count}건")
-m4.metric("3차 TM 완료", f"{tm3_count}건")
-m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
-m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- [신규] 영업 실적 현황 (당일 기준) '시트1' 연동 로직 ---
+# --- 💡 [위치 변경] 1. 영업 실적 현황 패널을 가장 위로 배치 ---
 st.subheader("🏆 영업 실적 현황 (당일 기준)")
-
-# 시트1 데이터 가져오기
 perf_df = load_perf_sheet(client)
 
-# 조회할 영업사원 ID 타겟팅
 if is_master:
     if selected_hc == "전체보기": target_id = "ALL"
     else:
@@ -648,20 +632,30 @@ else:
 
 perf_metrics = get_perf_metrics(perf_df, target_id)
 
-# 8개의 데이터를 4개씩 2줄로 예쁘게 배치
-pm1, pm2, pm3, pm4 = st.columns(4)
-pm1.metric("견적건(일)", perf_metrics.get('견적건(일)', '0'))
-pm2.metric("견적건(월)", perf_metrics.get('견적건(월)', '0'))
-pm3.metric("계약건(일)", perf_metrics.get('계약건(일)', '0'))
-pm4.metric("계약건(월)", perf_metrics.get('계약건(월)', '0'))
+# 💡 8칸 한 줄로 나란히 배치
+cols_perf = st.columns(8)
+cols_perf[0].metric("견적건(일)", perf_metrics.get('견적건(일)', '0'))
+cols_perf[1].metric("견적건(월)", perf_metrics.get('견적건(월)', '0'))
+cols_perf[2].metric("계약건(일)", perf_metrics.get('계약건(일)', '0'))
+cols_perf[3].metric("계약건(월)", perf_metrics.get('계약건(월)', '0'))
+cols_perf[4].metric("계약율", perf_metrics.get('계약율', '0%'))
+cols_perf[5].metric("계약금액(월)", perf_metrics.get('계약금액(월)', '0'))
+cols_perf[6].metric("당월매출 누계", perf_metrics.get('당월매출 누계', '0'))
+cols_perf[7].metric("익월 매출", perf_metrics.get('M+1', '0'))
 
-st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # 줄 간격 띄우기
+st.markdown("<br>", unsafe_allow_html=True)
 
-pm5, pm6, pm7, pm8 = st.columns(4)
-pm5.metric("계약율", perf_metrics.get('계약율', '0%'))
-pm6.metric("계약금액(월)", perf_metrics.get('계약금액(월)', '0'))
-pm7.metric("당월매출 누계", perf_metrics.get('당월매출 누계', '0'))
-pm8.metric("익월 매출", perf_metrics.get('M+1', '0')) # M+1을 익월 매출로 변경하여 렌더링
+
+# --- 💡 [위치 변경] 2. 견적 관리 지표 패널을 두 번째로 배치 ---
+st.subheader("📈 견적 관리 지표")
+m1, m2, m3, m4, m5, m6 = st.columns(6)
+title_text = "총 견적 건수" if is_master else "내 총 견적 건수"
+m1.metric(title_text, f"{total_quotes}건")
+m2.metric("1차 TM 완료", f"{tm1_count}건")
+m3.metric("2차 TM 완료", f"{tm2_count}건")
+m4.metric("3차 TM 완료", f"{tm3_count}건")
+m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
+m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
