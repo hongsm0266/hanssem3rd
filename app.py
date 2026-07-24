@@ -135,6 +135,7 @@ if not st.session_state['logged_in']:
 today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
+# 💡 [핵심 보완] 데이터 세탁소 강화: 체크박스는 무조건 bool 타입(True/False)만 허용
 def clean_and_enforce_types(df):
     req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']
     if df is None or df.empty:
@@ -145,15 +146,17 @@ def clean_and_enforce_types(df):
     
     df = df.copy()
     for col in req_cols:
-        if col not in df.columns: df[col] = False if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self'] else ''
-    
+        if col not in df.columns: 
+            df[col] = False if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self'] else ''
+            
     for col in ['상담일', '1차_TM_일자', '2차_TM_일자', '3차_TM_일자']:
         df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
         df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
         
-    # 💡 [핵심 버그 수정] 구글 시트에서 넘어온 글자 'FALSE' 등을 무조건 다 꺼버리도록(False) 강력한 세뇌 적용!
+    # 💡 여기서 1, 2, 3차 TM 및 체크박스 칸을 확실하게 불린(Boolean)으로 꽉 눌러 잠급니다. 
+    # 'TRUE'(문자열)나 True(불린), 1 등 명확한 긍정신호가 아니면 모조리 False 처리!
     for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: 
-        df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' else False)
+        df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
         
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
     for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙']:
@@ -243,8 +246,21 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
         headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']]
+        
+        # 💡 구글 시트로 넘어갈 때는 파이썬의 True/False 값을 대문자 TRUE/FALSE 문자로 강제 변환해서 오작동 방지
         def _prepare(d):
-            return [[("" if str(c).strip().lower() in ['nan', 'none', 'nat', '<na>'] else str(c)) for c in row] for row in [d.columns.values.tolist()] + d.values.tolist()]
+            safe_list = []
+            raw_list = [d.columns.values.tolist()] + d.values.tolist()
+            for row in raw_list:
+                safe_row = []
+                for cell in row:
+                    if isinstance(cell, bool): safe_row.append("TRUE" if cell else "FALSE")
+                    else:
+                        cell_str = str(cell)
+                        safe_row.append("" if cell_str.strip().lower() in ['nan', 'none', 'nat', '<na>'] else cell_str)
+                safe_list.append(safe_row)
+            return safe_list
+            
         if is_master_mode:
             for name in list(set([info["name"] for info in HC_DB.values()])):
                 group_df = df[df['HC명'] == name]
@@ -315,6 +331,8 @@ def parse_raw_text(text, master_mode):
             ph_m = re.search(r'휴대폰 번호\n([\d-]+)', block)
             ad_m = re.search(r'주소\n(.+)', block)
             ty_m = re.search(r'현장 유형\n([^\n]+)', block)
+            
+            # 💡 견적 추가할 때 체크박스는 무조건 False로 박아 넣음!
             records.append({
                 '선택/삭제': False, '상담일': pd.to_datetime(d_m.group(1)).date(),
                 '상담번호': n_m.group(1), 'HC_ID': p_id, 'HC명': p_name,
@@ -468,9 +486,7 @@ if filter_tab == "본인 작성 견적만 보기": display_df = display_df[displ
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    # 💡 [핵심] 안내 문구를 아주 명확하고 직관적으로 변경!
     st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (🗑️ 삭제: 체크 후 1번 누름 / 📝 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
-    
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
         "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), "고객명": st.column_config.TextColumn("고객명", width="medium"),
