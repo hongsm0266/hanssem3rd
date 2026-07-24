@@ -94,7 +94,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 사원 마스터 데이터 ---
 HC_DB = {
     "00033448": {"name": "장재형", "dealer": "둔산"}, "00038617": {"name": "이대운", "dealer": "둔산"},
     "00041990": {"name": "강지인", "dealer": "둔산"}, "00040110": {"name": "장영종", "dealer": "광양"},
@@ -107,18 +106,16 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
-# --- 🛋️ 상품 분류 키워드 세팅 (여기서 자유롭게 관리하세요!) ---
-# 💡 지워졌던 키워드들을 이곳에 "단어", "단어" 형식으로 추가해 주시면 됩니다.
+# --- 🛋️ 상품 분류 키워드 세팅 ---
 PRODUCT_KEYWORDS = {
     "침실단품": ["화장대", "서랍장", "리즈"],
     "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
     "침실": ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"],
     "거실": ["소파", "리클라이너", "스위브", "뉴플루드", "인피니", "뉴인피니", "테이즈", "키안티", "페타", "플로에", "거실장", "아카이브", "MVME"],
     "다이닝": ["식탁", "테이블", "식탁의자", "디아고", "리브업", "인칸토", "리니아"],
-    "책상의자 - 알로/조이": ["책상의자", "알로"], # "책상"과 "의자" 동시 포함 조건은 아래 함수 내에 유지됨
+    "책상의자 - 알로/조이": ["책상의자", "알로"],
     "자녀방 책상": ["조이"]
 }
-
 
 if 'logged_in' not in st.session_state: st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
@@ -150,7 +147,7 @@ today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
 def clean_and_enforce_types(df):
-    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']
+    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']
     if df is None or df.empty:
         edf = pd.DataFrame(columns=req_cols)
         for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: edf[col] = False
@@ -170,7 +167,7 @@ def clean_and_enforce_types(df):
         df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
         
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
-    for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙']:
+    for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙', '세부품목']:
         df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
         elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
@@ -256,7 +253,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
-        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']]
+        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']]
         def _prepare(d):
             safe_list = []
             raw_list = [d.columns.values.tolist()] + d.values.tolist()
@@ -295,7 +292,6 @@ def upload_to_imgbb(file_obj, file_name):
         return res["data"]["url"] if res.get("success") else None
     except: return None
 
-# 💡 상단에 정의된 PRODUCT_KEYWORDS 연동
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines, in_prod = [], False
@@ -325,7 +321,10 @@ def parse_product_summary(block):
     for r in res:
         if r not in seen and r != "기타(홈퍼니싱)": seen.add(r); top.append(r)
         if len(top) >= 3: break
-    return " / ".join(top) if top else "기타(홈퍼니싱)"
+        
+    cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
+    detail_str = "\n".join(prod_lines)
+    return cat_summary, detail_str
 
 def parse_raw_text(text, master_mode):
     records, skipped = [], 0
@@ -348,14 +347,17 @@ def parse_raw_text(text, master_mode):
             ad_m = re.search(r'주소\n(.+)', block)
             ty_m = re.search(r'현장 유형\n([^\n]+)', block)
             
+            cat_summary, detail_str = parse_product_summary(block)
+            
             records.append({
                 '선택/삭제': False, '상담일': pd.to_datetime(d_m.group(1)).date(),
                 '상담번호': n_m.group(1), 'HC_ID': p_id, 'HC명': p_name,
                 '대리점명': HC_DB.get(p_id, {}).get("dealer", my_dealer), '고객명': f"👤[본인] {c_name}" if is_self else c_name,
                 '연락처': ph_m.group(1) if ph_m else "", '주소': ad_m.group(1) if ad_m else "",
-                '상품(대분류)': parse_product_summary(block), '현장유형': ty_m.group(1) if ty_m else "",
+                '상품(대분류)': cat_summary, '현장유형': ty_m.group(1) if ty_m else "",
                 '견적금액': int(amt_m.group(1).replace(",", "")) if amt_m else 0,
-                '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '', '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '', '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '', '계약완료': False, '상담메모': '', 'is_self': is_self
+                '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '', '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '', '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '', '계약완료': False, '상담메모': '', 'is_self': is_self,
+                '세부품목': detail_str 
             })
     return pd.DataFrame(records), skipped
 
@@ -498,7 +500,8 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
+# 💡 [핵심] UI 테이블 상에서 "세부품목"의 위치를 "상품(대분류)" 바로 우측으로 이동
+col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
     st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (🗑️ 삭제: 체크 후 1번 누름 / 📝 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
@@ -510,7 +513,8 @@ if not display_df.empty:
         "2차_TM": st.column_config.CheckboxColumn("2차", width="small"), "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
         "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"), "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
-        "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large")
+        "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large"),
+        "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="medium", help="이 칸을 더블클릭하시면 전체 품목 내역을 팝업창으로 볼 수 있습니다.")
     }, hide_index=True, use_container_width=True, height=550) 
     
     with action_col2:
