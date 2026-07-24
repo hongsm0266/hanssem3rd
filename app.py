@@ -15,7 +15,6 @@ import base64
 st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", layout="wide")
 
 # --- 구글 시트 연동 설정 ---
-# 요청하신 대로 연결할 시트 이름을 변경했습니다!
 SHEET_NAME = "견적관리대장로우"
 
 # ⭐ [확인] 발급받으신 ImgBB API 키를 입력해주세요.
@@ -47,7 +46,7 @@ elif os.path.exists("hanssem.png"):
 else:
     HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (버튼 색상 및 위치 디자인 추가) ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -62,8 +61,41 @@ st.markdown("""
     .login-card-header { text-align: center; padding: 20px 0 10px 0; }
     .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 800 !important; margin-top: 15px; margin-bottom: 5px; }
     .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
-    div.stButton > button:first-child { background-color: #0056b3 !important; color: white !important; font-size: 16px !important; font-weight: bold !important; border-radius: 6px !important; padding: 10px 20px !important; border: none !important; }
-    div.stButton > button:first-child:hover { background-color: #003d80 !important; color: #ffffff !important; }
+    
+    /* 기본 공통 버튼 스타일 (글자가 길면 줄바꿈 되도록 처리) */
+    div.stButton > button { 
+        background-color: #0056b3 !important; 
+        color: white !important; 
+        font-size: 15px !important; 
+        font-weight: bold !important; 
+        border-radius: 6px !important; 
+        padding: 10px 15px !important; 
+        border: none !important; 
+        white-space: pre-wrap !important; 
+        height: auto !important; 
+        min-height: 45px;
+        line-height: 1.4 !important;
+    }
+    div.stButton > button:hover { background-color: #003d80 !important; color: #ffffff !important; }
+    
+    /* 1번 완전삭제 버튼 타겟팅 (빨간 바탕, 흰 글씨) */
+    div.element-container:has(.red-btn) + div.element-container div.stButton > button {
+        background-color: #ef4444 !important; 
+        color: #ffffff !important;
+    }
+    div.element-container:has(.red-btn) + div.element-container div.stButton > button:hover {
+        background-color: #dc2626 !important;
+    }
+
+    /* 2번 최종저장 버튼 타겟팅 (노란 바탕, 검은 글씨) */
+    div.element-container:has(.yellow-btn) + div.element-container div.stButton > button {
+        background-color: #facc15 !important; 
+        color: #000000 !important;
+    }
+    div.element-container:has(.yellow-btn) + div.element-container div.stButton > button:hover {
+        background-color: #eab308 !important;
+    }
+
     .user-info-box { background-color: #f1f5f9; border: 2px solid #0284c7; padding: 12px 16px; border-radius: 8px; text-align: right; }
     .user-info-name { font-size: 18px !important; font-weight: 900 !important; color: #0369a1 !important; }
     .user-info-sub { font-size: 12px !important; color: #64748b !important; }
@@ -527,7 +559,12 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 st.markdown("---")
 
 st.subheader("📋 견적 및 TM 목록")
-filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"], horizontal=True)
+
+# --- 버튼을 표 위로 올리기 위한 레이아웃 분할 ---
+action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
+
+with action_col1:
+    filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"])
 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기":
@@ -548,7 +585,7 @@ column_order = [
 ]
 
 if not display_df.empty:
-    st.markdown("<div class='table-header-banner'>📌 상세 견적 목록 (수정 후 아래 동기화 버튼을 누르세요)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (수정 후 반드시 상단의 2번 노란색 저장 버튼을 누르세요)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(
         display_df,
@@ -580,26 +617,25 @@ if not display_df.empty:
         num_rows="dynamic", hide_index=True, use_container_width=True, height=550
     )
     
-    # --- [삭제 및 수정 처리 버튼 2개 제공] ---
-    btn_col1, btn_col2 = st.columns(2)
-    
-    with btn_col1:
-        if st.button("🗑️ 선택한 항목 완전히 삭제하기 (구글 시트 즉시 반영)", use_container_width=True):
+    # --- [상단 위치에 렌더링된 버튼들의 실제 동작 로직 실행] ---
+    with action_col2:
+        st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
+        if st.button("1번 - 견적리스트 내용 완전 삭제하기\n(단순 수정X - 단순 수정은 수정 후 2번 클릭)", use_container_width=True):
             to_delete_nos = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
             if to_delete_nos:
                 with st.spinner("구글 시트에서 완전 삭제 중입니다... 🔄"):
-                    # 삭제할 항목을 제외한 깨끗한 데이터프레임 구축
                     st.session_state['data'] = st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_delete_nos)]
                     st.session_state['data'] = clean_and_enforce_types(st.session_state['data'])
                     
                     if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
-                        st.success(f"✅ {len(to_delete_nos)}건의 견적이 구글 시트에서 영구히 삭제되었습니다!")
+                        st.success(f"✅ {len(to_delete_nos)}건의 견적이 완전히 삭제되었습니다!")
                         st.rerun()
             else:
-                st.warning("삭제할 항목의 '선택/삭제' 체크박스에 먼저 체크해주세요!")
+                st.warning("삭제할 항목의 맨 앞 '선택/삭제' 칸에 먼저 체크해주세요!")
 
-    with btn_col2:
-        if st.button("💾 수정한 표 내용 전체를 구글 시트에 저장하기 (동기화)", type="primary", use_container_width=True):
+    with action_col3:
+        st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
+        if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
             with st.spinner("구글 시트에 업데이트 중입니다... 🔄"):
                 global_df = st.session_state['data'].copy()
                 global_df = global_df.drop(display_df.index, errors='ignore')
