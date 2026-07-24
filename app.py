@@ -100,15 +100,8 @@ st.markdown("""
     .user-info-sub { font-size: 12px !important; color: #64748b !important; font-weight: bold; }
     .table-header-banner { background-color: #0056b3; color: white; padding: 10px 16px; border-radius: 6px 6px 0 0; font-weight: 900; font-size: 16px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
 
-    [data-testid="stDataFrame"] th svg {
-        display: none !important; 
-    }
-    [data-testid="stDataFrame"] th {
-        font-weight: 900 !important; 
-        color: #0f172a !important;  
-        font-size: 14px !important;  
-        background-color: #f8fafc !important; 
-    }
+    [data-testid="stDataFrame"] th svg { display: none !important; }
+    [data-testid="stDataFrame"] th { font-weight: 900 !important; color: #0f172a !important; font-size: 14px !important; background-color: #f8fafc !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,8 +167,7 @@ def clean_and_enforce_types(df):
         return edf
     
     df = df.copy()
-    if '상품(대분류)' in df.columns:
-        df = df.rename(columns={'상품(대분류)': '상품'})
+    if '상품(대분류)' in df.columns: df = df.rename(columns={'상품(대분류)': '상품'})
 
     for col in req_cols:
         if col not in df.columns: 
@@ -252,6 +244,24 @@ def get_perf_metrics(perf_df, target_id, target_name):
             sums['T'] += clean_val(vals[18])
             sums['U'] += clean_val(vals[19])
             sums['Y'] += clean_val(vals[23])
+        return sums
+    elif str(target_id).startswith("DEALER_"):
+        dealer_name = str(target_id).replace("DEALER_", "")
+        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name]
+        sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+        for _, row in perf_df.iterrows():
+            vals = row.values
+            if len(vals) < 24: continue
+            row_str = "".join([str(x).strip() for x in vals])
+            if any(n in row_str for n in dealer_names):
+                sums['F'] += clean_val(vals[4])
+                sums['G'] += clean_val(vals[5])
+                sums['H'] += clean_val(vals[6])
+                sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16])
+                sums['T'] += clean_val(vals[18])
+                sums['U'] += clean_val(vals[19])
+                sums['Y'] += clean_val(vals[23])
         return sums
     else:
         possible_ids = [str(target_id), target_name]
@@ -417,14 +427,31 @@ with col_head_right:
     with sub_col2:
         if st.button("로그아웃"): st.session_state['logged_in'] = False; st.rerun()
         
+    # 💡 [핵심] 마스터 필터에 '모든 인원 전체보기'와 '상권(대리점) 단위 그룹 조회' 기능 모두 추가!
     if is_master:
-        if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "전체보기"
-        all_hc_list = ["전체보기"] + [f"{info['name']} ({info['dealer']})" for info in HC_DB.values()]
+        if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "🌟 전체보기 (모든 영업사원)"
+        dealers = sorted(list(set([info['dealer'] for info in HC_DB.values()])))
+        
+        all_hc_list = ["🌟 전체보기 (모든 영업사원)"]
+        for d in dealers:
+            all_hc_list.append(f"🏢 [{d}] 상권 전체보기")
+            
+        for info in HC_DB.values():
+            all_hc_list.append(f"👤 {info['name']} ({info['dealer']})")
+            
         selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
+# 💡 [핵심] 선택한 필터에 맞춰 전체 견적 데이터(my_df) 걸러내기
 if is_master:
     my_df = st.session_state['data'].copy()
-    if selected_hc != "전체보기": my_df = my_df[my_df['HC명'] == selected_hc.split(" (")[0]]
+    if selected_hc == "🌟 전체보기 (모든 영업사원)":
+        pass
+    elif "상권 전체보기" in selected_hc:
+        dealer_name = selected_hc.split("[")[1].split("]")[0]
+        my_df = my_df[my_df['대리점명'] == dealer_name]
+    else:
+        sel_name = selected_hc.replace("👤 ", "").split(" (")[0]
+        my_df = my_df[my_df['HC명'] == sel_name]
 else: 
     my_df = st.session_state['data'][st.session_state['data']['HC_ID'] == my_id].copy()
 
@@ -477,8 +504,22 @@ contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
-target_name_perf = "ALL" if is_master and selected_hc == "전체보기" else (selected_hc.split(" (")[0] if is_master else my_name)
-target_id = "ALL" if target_name_perf == "ALL" else next((k for k, v in HC_DB.items() if v['name'] == target_name_perf), my_id)
+# 💡 [핵심] 영업 실적도 마스터 필터 선택에 맞춰서 완벽하게 동기화!
+if is_master:
+    if selected_hc == "🌟 전체보기 (모든 영업사원)":
+        target_name_perf = "ALL"
+        target_id = "ALL"
+    elif "상권 전체보기" in selected_hc:
+        dealer_name = selected_hc.split("[")[1].split("]")[0]
+        target_name_perf = f"DEALER_{dealer_name}"
+        target_id = f"DEALER_{dealer_name}"
+    else:
+        sel_name = selected_hc.replace("👤 ", "").split(" (")[0]
+        target_name_perf = sel_name
+        target_id = next((k for k, v in HC_DB.items() if v['name'] == target_name_perf), my_id)
+else:
+    target_id = my_id
+    target_name_perf = my_name
 
 metrics = get_perf_metrics(perf_df, target_id, target_name_perf)
 
@@ -486,7 +527,8 @@ def fmt(n): return f"{int(round(n)):,}"
 def render_metric(label, v_html): return f'<div class="custom-metric"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{v_html}</div></div>'
 
 F_str, G_str, H_str, I_str = fmt(metrics['F']), fmt(metrics['G']), fmt(metrics['H']), fmt(metrics['I'])
-J_str = f"{int(round(metrics['J']))}%" if target_id != "ALL" else "-"
+# 대리점(팀) 전체이거나 모두 전체일 경우 계약율(J)은 합산의미가 없으므로 "-"로 깔끔하게 표시
+J_str = f"{int(round(metrics['J']))}%" if str(target_id) != "ALL" and not str(target_id).startswith("DEALER_") else "-"
 R_str, Y_str = fmt(metrics['R']), fmt(metrics['Y'])
 T_str, U_str = fmt(metrics['T']), fmt(metrics['U'])
 
@@ -525,14 +567,20 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# 💡 [핵심] 마스터가 특정 직원을 선택했을 때 누구 데이터인지 하이라이트 박스로 초강조 표시
-if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "전체보기":
-    sel_name = st.session_state['selected_hc'].split(" (")[0]
-    sel_id = next((k for k, v in HC_DB.items() if v['name'] == sel_name), "알수없음")
-    st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: {sel_name} (사번: {sel_id})</span></h3>", unsafe_allow_html=True)
+# 💡 [핵심] 선택한 인원/상권을 '견적 및 TM 목록' 헤더 옆에 빨간 박스로 아주 강력하게 표시!
+if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "🌟 전체보기 (모든 영업사원)":
+    if "상권 전체보기" in st.session_state['selected_hc']:
+        dealer_name = st.session_state['selected_hc'].split("[")[1].split("]")[0]
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🏢 [{dealer_name}] 상권 전체 조회 중</span></h3>", unsafe_allow_html=True)
+    else:
+        sel_name = st.session_state['selected_hc'].replace("👤 ", "").split(" (")[0]
+        sel_id = next((k for k, v in HC_DB.items() if v['name'] == sel_name), "알수없음")
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 👤 {sel_name} (사번: {sel_id})</span></h3>", unsafe_allow_html=True)
 else:
-    st.subheader("견적 및 TM 목록")
-
+    if is_master:
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #2563eb; font-size: 20px; background-color: #dbeafe; padding: 4px 12px; border-radius: 8px; border: 2px solid #bfdbfe; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🌟 모든 영업사원 통합</span></h3>", unsafe_allow_html=True)
+    else:
+        st.subheader("견적 및 TM 목록")
 
 action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
 with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"])
