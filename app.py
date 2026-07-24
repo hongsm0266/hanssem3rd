@@ -418,11 +418,10 @@ with col_head_right:
     with sub_col2:
         if st.button("로그아웃"): st.session_state['logged_in'] = False; st.rerun()
         
-    # 💡 마스터 로그인 시 유저 박스 바로 밑에 영업사원 필터 생성!
     if is_master:
         if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "전체보기"
         all_hc_list = ["전체보기"] + [f"{info['name']} ({info['dealer']})" for info in HC_DB.values()]
-        selected_hc = st.selectbox("👑 마스터 전용 조회 필터", all_hc_list, key="selected_hc")
+        selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
 # --- 💡 전역 데이터 필터링 적용 ---
 if is_master:
@@ -442,7 +441,6 @@ with input_col1:
 
 with input_col2:
     with st.expander("TM 증빙 사진 초고속 업로드", expanded=True):
-        # 💡 필터링된 my_df를 활용하여 드롭다운 리스트도 동기화
         temp_df = my_df 
         if not temp_df.empty:
             quote_list = ["--- 견적을 선택하세요 ---"] + (temp_df['상담일'].astype(str) + " | " + temp_df['고객명'] + " (" + temp_df['상담번호'] + ")").tolist()
@@ -481,8 +479,9 @@ contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
-target_id = "ALL" if is_master and selected_hc == "전체보기" else my_id
+# 💡 [핵심 버그 수정] 마스터 필터링 시 사원 ID 조회 로직 복구
 target_name_perf = "ALL" if is_master and selected_hc == "전체보기" else (selected_hc.split(" (")[0] if is_master else my_name)
+target_id = "ALL" if target_name_perf == "ALL" else next((k for k, v in HC_DB.items() if v['name'] == target_name_perf), my_id)
 
 metrics = get_perf_metrics(perf_df, target_id, target_name_perf)
 
