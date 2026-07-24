@@ -286,20 +286,17 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
         st.error(f"구글 시트를 불러오지 못했습니다. 상세오류: {e}")
         return clean_and_enforce_types(None)
 
-# 💡 [핵심] 시트1의 B30:AG70 구역만 정확히 타겟팅해서 읽어오는 기능
 @st.cache_data(ttl=5) 
 def load_perf_sheet(_gc_client):
     try:
         spreadsheet = _gc_client.open(SHEET_NAME)
         sheet = spreadsheet.worksheet("시트1")
-        # 구글 시트에서 지정된 B30~AG70 범위의 데이터 덩어리를 통째로 가져오기
         data = sheet.get("B30:AG70")
         
         if data and len(data) > 1:
-            headers = [str(h).strip() for h in data[0]] # 30행의 제목
-            rows = data[1:] # 31행부터 실제 데이터
+            headers = [str(h).strip() for h in data[0]]
+            rows = data[1:]
             
-            # 구글 API는 맨 끝에 빈칸이 있으면 배열을 잘라버리므로 방어 코드 추가
             safe_rows = []
             for r in rows:
                 safe_row = r + [''] * (len(headers) - len(r))
@@ -311,16 +308,18 @@ def load_perf_sheet(_gc_client):
     except Exception:
         return pd.DataFrame()
 
+# 💡 [핵심] T열 강제 인식 (인덱스 18 = T열) 기능을 탑재한 추출 로직
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { '견적건(일)': '0', '견적건(월)': '0', '계약건(일)': '0', '계약건(월)': '0', '계약율': '0%', '계약금액(월)': '0', '당월매출 누계': '0', 'M+1': '0' }
     if perf_df is None or perf_df.empty: return default
     df_cols = perf_df.columns
     
-    def extract(row, kw_list):
-        for c in df_cols:
-            # 띄어쓰기 및 줄바꿈 기호 완벽 제거 후 검색
+    # 💡 fallback_idx를 추가하여 지정된 열 번호를 강제로 캡처합니다.
+    def extract(row, kw_list, fallback_idx=-1):
+        for i, c in enumerate(df_cols):
             clean_c = str(c).replace(" ", "").replace("\n", "")
-            if any(kw in clean_c for kw in kw_list):
+            # 헤더 이름이 겹치거나 지정된 T열(인덱스 18)인 경우 데이터를 가져옴
+            if any(kw in clean_c for kw in kw_list) or i == fallback_idx:
                 val = row[c]
                 if pd.isna(val) or val == "": return "0"
                 
@@ -328,8 +327,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
                     try:
                         clean_val = str(val).replace('%', '').replace(',', '').strip()
                         fval = float(clean_val)
-                        if 0 < fval <= 1.0 and "%" not in str(val):
-                            fval = fval * 100
+                        if 0 < fval <= 1.0 and "%" not in str(val): fval = fval * 100
                         return f"{int(round(fval))}%"
                     except:
                         return str(val) if "%" in str(val) else f"{val}%"
@@ -346,20 +344,23 @@ def get_perf_metrics(perf_df, target_id, target_name):
         for _, row in perf_df.iterrows():
             for k in sums.keys():
                 kw_list = []
+                fallback_idx = -1
+                
                 if k == "M+1": kw_list = ["M+1", "익월매출"]
                 elif k == "계약금액(월)": kw_list = ["계약금액"]
-                elif k == "당월매출 누계": kw_list = ["당월매출", "누계매출"]
+                elif k == "당월매출 누계": 
+                    kw_list = ["당월매출", "누계매출"]
+                    fallback_idx = 18 # 💡 B부터 시작하는 표의 18번째 인덱스 = 구글 시트의 T열
                 else: kw_list = [k.replace(" ", "")]
                 
-                for c in df_cols:
-                    if any(kw in str(c).replace(" ", "").replace("\n", "") for kw in kw_list):
+                for i, c in enumerate(df_cols):
+                    if any(kw in str(c).replace(" ", "").replace("\n", "") for kw in kw_list) or i == fallback_idx:
                         val = row[c]
                         try: sums[k] += float(str(val).replace(',', '').replace('원', '').strip())
                         except: pass
                         break
         res = {}
-        for k, v in sums.items():
-            res[k] = f"{int(round(v)):,}"
+        for k, v in sums.items(): res[k] = f"{int(round(v)):,}"
         res['계약율'] = "-"
         return res
     else:
@@ -377,7 +378,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
                     '계약건(월)': extract(row, ['계약건(월)', '계약(월)', '월계약']),
                     '계약율': extract(row, ['계약율', '계약률']),
                     '계약금액(월)': extract(row, ['계약금액']),
-                    '당월매출 누계': extract(row, ['당월매출', '누계매출']),
+                    '당월매출 누계': extract(row, ['당월매출', '누계매출'], fallback_idx=18), # 💡 T열 강제 타겟팅
                     'M+1': extract(row, ['M+1', '익월매출', 'm+1'])
                 }
         return default
@@ -552,6 +553,8 @@ with col_head_left:
     st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 실시간 자동 동기화 서버 연결됨")
 
 with col_head_right:
+    # 💡 [핵심] 상단 여백을 시원하게 주어 로그아웃 버튼 가려짐 완벽 해결
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
     sub_col1, sub_col2 = st.columns([3, 1])
     with sub_col1:
         if is_master: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
