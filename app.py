@@ -94,6 +94,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 사원 마스터 데이터 ---
 HC_DB = {
     "00033448": {"name": "장재형", "dealer": "둔산"}, "00038617": {"name": "이대운", "dealer": "둔산"},
     "00041990": {"name": "강지인", "dealer": "둔산"}, "00040110": {"name": "장영종", "dealer": "광양"},
@@ -105,6 +106,19 @@ HC_DB = {
     "00033479": {"name": "류승태", "dealer": "여수"}, "00042423": {"name": "라태현", "dealer": "여수"},
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
+
+# --- 🛋️ 상품 분류 키워드 세팅 (여기서 자유롭게 관리하세요!) ---
+# 💡 지워졌던 키워드들을 이곳에 "단어", "단어" 형식으로 추가해 주시면 됩니다.
+PRODUCT_KEYWORDS = {
+    "침실단품": ["화장대", "서랍장", "리즈"],
+    "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
+    "침실": ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"],
+    "거실": ["소파", "리클라이너", "스위브", "뉴플루드", "인피니", "뉴인피니", "테이즈", "키안티", "페타", "플로에", "거실장", "아카이브", "MVME"],
+    "다이닝": ["식탁", "테이블", "식탁의자", "디아고", "리브업", "인칸토", "리니아"],
+    "책상의자 - 알로/조이": ["책상의자", "알로"], # "책상"과 "의자" 동시 포함 조건은 아래 함수 내에 유지됨
+    "자녀방 책상": ["조이"]
+}
+
 
 if 'logged_in' not in st.session_state: st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
@@ -135,7 +149,6 @@ if not st.session_state['logged_in']:
 today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
-# 💡 [핵심 보완] 데이터 세탁소 강화: 체크박스는 무조건 bool 타입(True/False)만 허용
 def clean_and_enforce_types(df):
     req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']
     if df is None or df.empty:
@@ -153,8 +166,6 @@ def clean_and_enforce_types(df):
         df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
         df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
         
-    # 💡 여기서 1, 2, 3차 TM 및 체크박스 칸을 확실하게 불린(Boolean)으로 꽉 눌러 잠급니다. 
-    # 'TRUE'(문자열)나 True(불린), 1 등 명확한 긍정신호가 아니면 모조리 False 처리!
     for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: 
         df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
         
@@ -246,8 +257,6 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
         headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self']]
-        
-        # 💡 구글 시트로 넘어갈 때는 파이썬의 True/False 값을 대문자 TRUE/FALSE 문자로 강제 변환해서 오작동 방지
         def _prepare(d):
             safe_list = []
             raw_list = [d.columns.values.tolist()] + d.values.tolist()
@@ -286,6 +295,7 @@ def upload_to_imgbb(file_obj, file_name):
         return res["data"]["url"] if res.get("success") else None
     except: return None
 
+# 💡 상단에 정의된 PRODUCT_KEYWORDS 연동
 def parse_product_summary(block):
     lines = [l.strip() for l in block.split("\n") if l.strip()]
     prod_lines, in_prod = [], False
@@ -296,14 +306,20 @@ def parse_product_summary(block):
 
     res = []
     for p in prod_lines:
-        if "책상의자" in p or ("책상" in p and "의자" in p) or "알로" in p: res.append("책상의자 - 알로/조이")
-        elif "화장대" in p or "서랍장" in p or "리즈" in p: res.append("침실단품")
-        elif any(k in p for k in ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"]): res.append("수납")
-        elif any(k in p for k in ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"]): res.append("침실")
-        elif any(k in p for k in ["소파", "리클라이너", "스위브", "뉴플루드", "인피니", "뉴인피니", "테이즈", "키안티", "페타", "플로에", "거실장", "아카이브", "MVME"]): res.append("거실")
-        elif any(k in p for k in ["식탁", "테이블", "식탁의자", "디아고", "리브업", "인칸토", "리니아"]): res.append("다이닝")
-        elif "책상" in p or "조이" in p: res.append("자녀방 책상")
-        else: res.append("기타(홈퍼니싱)")
+        matched = False
+        if "책상" in p and "의자" in p:
+            res.append("책상의자 - 알로/조이")
+            continue
+        
+        for cat, keywords in PRODUCT_KEYWORDS.items():
+            if any(k in p for k in keywords):
+                res.append(cat)
+                matched = True
+                break
+                
+        if not matched:
+            if "책상" in p: res.append("자녀방 책상")
+            else: res.append("기타(홈퍼니싱)")
     
     seen = set(); top = []
     for r in res:
@@ -332,7 +348,6 @@ def parse_raw_text(text, master_mode):
             ad_m = re.search(r'주소\n(.+)', block)
             ty_m = re.search(r'현장 유형\n([^\n]+)', block)
             
-            # 💡 견적 추가할 때 체크박스는 무조건 False로 박아 넣음!
             records.append({
                 '선택/삭제': False, '상담일': pd.to_datetime(d_m.group(1)).date(),
                 '상담번호': n_m.group(1), 'HC_ID': p_id, 'HC명': p_name,
