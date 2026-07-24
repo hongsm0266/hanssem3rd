@@ -17,7 +17,7 @@ st.set_page_config(page_title="충청호남팀 견적 관리 및 TM 진도", lay
 # --- 구글 시트 연동 설정 ---
 SHEET_NAME = "견적관리대장로우"
 
-# ⭐ [확인] 발급받으신 ImgBB API 키를 입력해주세요.
+# ⭐ 발급받으신 ImgBB API 키 영구 탑재 완료!
 IMGBB_API_KEY = "1cecb3f4e313203e40d78882356ef1ca"
 
 @st.cache_resource
@@ -33,7 +33,7 @@ def init_connection():
         client = gspread.authorize(creds)
         return client
     except Exception as e:
-        st.error("🚨 구글 API 키(Secrets) 설정이 안 되어 있거나 오류가 발생했습니다. 세팅을 확인해주세요.")
+        st.error("구글 API 키(Secrets) 설정이 안 되어 있거나 오류가 발생했습니다. 세팅을 확인해주세요.")
         return None
 
 client = init_connection()
@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (이모지 제거 및 폰트 진하게 강화) ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -52,8 +52,17 @@ st.markdown("""
         padding-left: 1rem !important; padding-right: 1rem !important;
         padding-top: 1.5rem !important; padding-bottom: 1rem !important;
     }
-    .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 800 !important; margin-top: 15px; margin-bottom: 5px; }
-    .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    
+    /* 💡 각 주제(Subheader)를 매우 진하고 또렷하게 변경 */
+    h2, h3 {
+        font-weight: 900 !important;
+        color: #0f172a !important;
+        font-size: 24px !important;
+        letter-spacing: -0.5px !important;
+    }
+
+    .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 900 !important; margin-top: 15px; margin-bottom: 5px; }
+    .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: bold; }
     
     div.stButton > button { 
         background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important; 
@@ -89,8 +98,8 @@ st.markdown("""
 
     .user-info-box { background-color: #f1f5f9; border: 2px solid #0284c7; padding: 12px 16px; border-radius: 8px; text-align: right; }
     .user-info-name { font-size: 18px !important; font-weight: 900 !important; color: #0369a1 !important; }
-    .user-info-sub { font-size: 12px !important; color: #64748b !important; }
-    .table-header-banner { background-color: #0056b3; color: white; padding: 8px 16px; border-radius: 6px 6px 0 0; font-weight: bold; font-size: 14px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
+    .user-info-sub { font-size: 12px !important; color: #64748b !important; font-weight: bold; }
+    .table-header-banner { background-color: #0056b3; color: white; padding: 10px 16px; border-radius: 6px 6px 0 0; font-weight: 900; font-size: 16px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +115,7 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
-# --- 🛋️ 상품 분류 키워드 세팅 ---
+# --- 상품 분류 키워드 세팅 ---
 PRODUCT_KEYWORDS = {
     "침실단품": ["화장대", "서랍장", "리즈"],
     "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
@@ -147,7 +156,9 @@ today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
 def clean_and_enforce_types(df):
-    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']
+    # 💡 '상품(대분류)' -> '상품'으로 이름 축소
+    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']
+    
     if df is None or df.empty:
         edf = pd.DataFrame(columns=req_cols)
         for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: edf[col] = False
@@ -155,6 +166,11 @@ def clean_and_enforce_types(df):
         return edf
     
     df = df.copy()
+    
+    # 구글 시트에 예전 이름 '상품(대분류)'가 남아있다면 자동으로 '상품'으로 호환되게 변경
+    if '상품(대분류)' in df.columns:
+        df = df.rename(columns={'상품(대분류)': '상품'})
+
     for col in req_cols:
         if col not in df.columns: 
             df[col] = False if col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self'] else ''
@@ -167,7 +183,7 @@ def clean_and_enforce_types(df):
         df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
         
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
-    for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품(대분류)', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙', '세부품목']:
+    for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙', '세부품목']:
         df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
         elif col == '상담번호': df[col] = df[col].str.replace(r'\.0$', '', regex=True)
@@ -253,7 +269,8 @@ def get_perf_metrics(perf_df, target_id, target_name):
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
-        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품(대분류)', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']]
+        # 구글 시트 저장 시에도 '상품' 이름 유지
+        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']]
         def _prepare(d):
             safe_list = []
             raw_list = [d.columns.values.tolist()] + d.values.tolist()
@@ -323,10 +340,7 @@ def parse_product_summary(block):
         if len(top) >= 3: break
         
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
-    
-    # 💡 [버그 해결!] 줄바꿈(\n) 대신 쉼표( , )로 텍스트를 이어붙여 데이터에디터 오류 방지
     detail_str = " , ".join(prod_lines)
-    
     return cat_summary, detail_str
 
 def parse_raw_text(text, master_mode):
@@ -355,9 +369,9 @@ def parse_raw_text(text, master_mode):
             records.append({
                 '선택/삭제': False, '상담일': pd.to_datetime(d_m.group(1)).date(),
                 '상담번호': n_m.group(1), 'HC_ID': p_id, 'HC명': p_name,
-                '대리점명': HC_DB.get(p_id, {}).get("dealer", my_dealer), '고객명': f"👤[본인] {c_name}" if is_self else c_name,
+                '대리점명': HC_DB.get(p_id, {}).get("dealer", my_dealer), '고객명': f"[본인] {c_name}" if is_self else c_name,
                 '연락처': ph_m.group(1) if ph_m else "", '주소': ad_m.group(1) if ad_m else "",
-                '상품(대분류)': cat_summary, '현장유형': ty_m.group(1) if ty_m else "",
+                '상품': cat_summary, '현장유형': ty_m.group(1) if ty_m else "",
                 '견적금액': int(amt_m.group(1).replace(",", "")) if amt_m else 0,
                 '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '', '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '', '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '', '계약완료': False, '상담메모': '', 'is_self': is_self,
                 '세부품목': detail_str 
@@ -372,22 +386,22 @@ def add_quotes_callback():
             ldf = load_data_from_sheet(client, is_master, my_name)
             udf = clean_and_enforce_types(pd.concat([ldf, new_df], ignore_index=True) if not ldf.empty else new_df).sort_values(by='상담일', ascending=True).reset_index(drop=True)
             if save_data_to_sheet(client, udf, is_master, my_name):
-                st.session_state.update({'data': udf, 'success_msg': f"✅ 성공적으로 {len(new_df)}건을 추가했습니다!", 'uploader_key': st.session_state['uploader_key'] + 1})
+                st.session_state.update({'data': udf, 'success_msg': f"성공적으로 {len(new_df)}건을 추가했습니다!", 'uploader_key': st.session_state['uploader_key'] + 1})
         else: st.session_state['warning_msg'] = "추가된 견적이 없습니다."
-        if skipped > 0: st.session_state['warning_msg'] = f"🚨 타 사원의 견적 {skipped}건 제외됨."
+        if skipped > 0: st.session_state['warning_msg'] = f"타 사원의 견적 {skipped}건 제외됨."
         st.session_state['raw_input_area'] = ""
 
 col_head_left, col_head_right = st.columns([2, 1])
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
-    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 🟢 실시간 자동 동기화 서버 연결됨")
+    st.caption(f"기준일: {today.strftime('%Y년 %m월 %d일')} | 실시간 자동 동기화 서버 연결됨")
 
 with col_head_right:
     st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
     sub_col1, sub_col2 = st.columns([3, 1])
     with sub_col1:
-        if is_master: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👑 {my_name} 님</span></div>", unsafe_allow_html=True)
-        else: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>👤 {my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
+        if is_master: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>{my_name} 님</span></div>", unsafe_allow_html=True)
+        else: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>{my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
         if st.button("로그아웃"): st.session_state['logged_in'] = False; st.rerun()
 
@@ -395,12 +409,12 @@ st.markdown("---")
 input_col1, input_col2 = st.columns(2)
 
 with input_col1:
-    with st.expander("➕ 한샘 시스템 복사해서 새 견적 추가", expanded=True):
+    with st.expander("한샘 시스템 복사해서 새 견적 추가", expanded=True):
         st.text_area("텍스트를 붙여넣으세요", height=120, key="raw_input_area")
         st.button("견적 추가 및 시트 저장", on_click=add_quotes_callback)
 
 with input_col2:
-    with st.expander("📸 TM 증빙 사진 초고속 업로드", expanded=True):
+    with st.expander("TM 증빙 사진 초고속 업로드", expanded=True):
         temp_df = st.session_state['data']
         if not is_master: temp_df = temp_df[temp_df['HC_ID'] == my_id]
         if not temp_df.empty:
@@ -409,7 +423,7 @@ with input_col2:
             sel_tm = st.radio("TM 차수 선택", ["1차_증빙", "2차_증빙", "3차_증빙"], horizontal=True, key=f"tm_sel_{st.session_state['uploader_key']}")
             uploaded_img = st.file_uploader("바탕화면에서 사진 끌어다 놓기", type=['jpg', 'jpeg', 'png'], key=f"img_uploader_{st.session_state['uploader_key']}")
             
-            if st.button("🚀 사진 업로드 및 저장", type="primary"):
+            if st.button("사진 업로드 및 저장", type="primary"):
                 if sel_quote == "--- 견적을 선택하세요 ---" or not uploaded_img: st.warning("견적 선택 및 사진을 올려주세요!")
                 else:
                     q_no = re.search(r'\((.*?)\)', sel_quote).group(1)
@@ -418,7 +432,7 @@ with input_col2:
                         if img_url:
                             st.session_state['data'].loc[st.session_state['data']['상담번호'] == q_no, sel_tm] = img_url
                             if save_data_to_sheet(client, st.session_state['data'], is_master, my_name):
-                                st.success("✅ 사진 업로드 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
+                                st.success("사진 업로드 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
                             else: st.error("시트 저장 실패.")
         else: st.info("먼저 견적을 등록해주세요!")
 
@@ -444,8 +458,8 @@ tm_rate = ((tm1_count + tm2_count + tm3_count) / total_quotes * 100) if total_qu
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 
 
-# --- 🏆 영업 실적 현황 ---
-st.subheader("🏆 영업 실적 현황 (당일 기준)")
+# --- 영업 실적 현황 ---
+st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
 target_id = "ALL" if is_master and selected_hc == "전체보기" else my_id
@@ -484,8 +498,8 @@ cols_perf[7].markdown(render_metric("익월 매출", Y_str), unsafe_allow_html=T
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- 📈 견적 관리 지표 ---
-st.subheader("📈 견적 관리 지표")
+# --- 견적 관리 지표 ---
+st.subheader("견적 관리 지표")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("총 견적 건수" if is_master else "내 총 견적 건수", f"{total_quotes}건")
 m2.metric("1차 TM 완료", f"{tm1_count}건")
@@ -495,7 +509,7 @@ m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
 m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
-st.subheader("📋 견적 및 TM 목록")
+st.subheader("견적 및 TM 목록")
 
 action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
 with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"])
@@ -503,21 +517,34 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
+col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>📌 상세 견적 목록 (🗑️ 삭제: 체크 후 1번 누름 / 📝 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>상세 견적 목록 (삭제: 체크 후 1번 누름 / 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
+    
+    # 💡 [핵심] 모든 칸 넓이를 small로 강제 압축 (주소 등 일부 제외) 및 '🔗보기' 로 글자 축소
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
-        "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
-        "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), "고객명": st.column_config.TextColumn("고객명", width="medium"),
-        "견적금액": st.column_config.NumberColumn("견적금액 (원)", format="%,d", width="small"), "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
-        "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"), "1차_증빙": st.column_config.LinkColumn("1차 증빙", display_text="🔗 사진보기", width="small"),
-        "2차_TM": st.column_config.CheckboxColumn("2차", width="small"), "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
-        "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"), "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
-        "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
-        "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large"),
-        # 💡 [핵심] 넓이를 크게 키워서 더블클릭 및 확인이 편하게 만듦
-        "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="large", help="이 칸을 더블클릭하시면 쉼표로 연결된 전체 품목 내역을 넓게 볼 수 있습니다.")
+        "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
+        "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
+        "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), 
+        "고객명": st.column_config.TextColumn("고객명", width="small"),
+        "연락처": st.column_config.TextColumn("연락처", width="small"),
+        "주소": st.column_config.TextColumn("주소", width="medium"),
+        "상품": st.column_config.TextColumn("상품", width="small"),
+        "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="medium", help="더블클릭하여 전체 내용을 확인하세요."),
+        "현장유형": st.column_config.TextColumn("현장유형", width="small"),
+        "견적금액": st.column_config.NumberColumn("견적금액", format="%,d", width="small"), 
+        "1차_TM": st.column_config.CheckboxColumn("1차", width="small"),
+        "1차_TM_일자": st.column_config.DateColumn("1차 일자", format="MM/DD", width="small"), 
+        "1차_증빙": st.column_config.LinkColumn("1차 증빙", display_text="🔗보기", width="small"),
+        "2차_TM": st.column_config.CheckboxColumn("2차", width="small"), 
+        "2차_TM_일자": st.column_config.DateColumn("2차 일자", format="MM/DD", width="small"),
+        "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗보기", width="small"), 
+        "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
+        "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), 
+        "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗보기", width="small"),
+        "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), 
+        "상담메모": st.column_config.TextColumn("상담메모", width="medium")
     }, hide_index=True, use_container_width=True, height=550) 
     
     with action_col2:
@@ -527,7 +554,7 @@ if not display_df.empty:
             if to_del:
                 with st.spinner("삭제 중..."):
                     st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_del)])
-                    if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("✅ 삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
+                    if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
             else: st.warning("삭제할 항목을 먼저 체크해 주세요!")
 
     with action_col3:
@@ -543,7 +570,7 @@ if not display_df.empty:
                 
                 if save_data_to_sheet(client, new_global_df, is_master, my_name): 
                     st.session_state['data'] = new_global_df
-                    st.success("✅ 안전하게 전체 수정사항이 덮어쓰기 되었습니다!")
+                    st.success("안전하게 전체 수정사항이 덮어쓰기 되었습니다!")
                     st.session_state['uploader_key'] += 1
                     st.rerun()
 else: st.info("데이터가 없습니다. 견적을 추가해주세요!")
