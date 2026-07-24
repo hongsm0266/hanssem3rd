@@ -403,7 +403,6 @@ def add_quotes_callback():
         if skipped > 0: st.session_state['warning_msg'] = f"타 사원의 견적 {skipped}건 제외됨."
         st.session_state['raw_input_area'] = ""
 
-# --- 💡 최상단 헤더 + 필터 영역 ---
 col_head_left, col_head_right = st.columns([2, 1])
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
@@ -423,7 +422,6 @@ with col_head_right:
         all_hc_list = ["전체보기"] + [f"{info['name']} ({info['dealer']})" for info in HC_DB.values()]
         selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
-# --- 💡 전역 데이터 필터링 적용 ---
 if is_master:
     my_df = st.session_state['data'].copy()
     if selected_hc != "전체보기": my_df = my_df[my_df['HC명'] == selected_hc.split(" (")[0]]
@@ -479,7 +477,6 @@ contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
-# 💡 [핵심 버그 수정] 마스터 필터링 시 사원 ID 조회 로직 복구
 target_name_perf = "ALL" if is_master and selected_hc == "전체보기" else (selected_hc.split(" (")[0] if is_master else my_name)
 target_id = "ALL" if target_name_perf == "ALL" else next((k for k, v in HC_DB.items() if v['name'] == target_name_perf), my_id)
 
@@ -527,7 +524,15 @@ m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
 m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
-st.subheader("견적 및 TM 목록")
+
+# 💡 [핵심] 마스터가 특정 직원을 선택했을 때 누구 데이터인지 하이라이트 박스로 초강조 표시
+if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "전체보기":
+    sel_name = st.session_state['selected_hc'].split(" (")[0]
+    sel_id = next((k for k, v in HC_DB.items() if v['name'] == sel_name), "알수없음")
+    st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: {sel_name} (사번: {sel_id})</span></h3>", unsafe_allow_html=True)
+else:
+    st.subheader("견적 및 TM 목록")
+
 
 action_col1, action_col2, action_col3 = st.columns([1.1, 2.3, 2.3])
 with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 작성 견적만 보기"])
