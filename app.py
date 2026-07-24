@@ -323,7 +323,10 @@ def parse_product_summary(block):
         if len(top) >= 3: break
         
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
-    detail_str = "\n".join(prod_lines)
+    
+    # 💡 [버그 해결!] 줄바꿈(\n) 대신 쉼표( , )로 텍스트를 이어붙여 데이터에디터 오류 방지
+    detail_str = " , ".join(prod_lines)
+    
     return cat_summary, detail_str
 
 def parse_raw_text(text, master_mode):
@@ -500,7 +503,6 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] UI 테이블 상에서 "세부품목"의 위치를 "상품(대분류)" 바로 우측으로 이동
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품(대분류)", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
@@ -514,7 +516,8 @@ if not display_df.empty:
         "2차_증빙": st.column_config.LinkColumn("2차 증빙", display_text="🔗 사진보기", width="small"), "3차_TM": st.column_config.CheckboxColumn("3차", width="small"),
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗 사진보기", width="small"),
         "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), "상담메모": st.column_config.TextColumn("상담메모", width="large"),
-        "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="medium", help="이 칸을 더블클릭하시면 전체 품목 내역을 팝업창으로 볼 수 있습니다.")
+        # 💡 [핵심] 넓이를 크게 키워서 더블클릭 및 확인이 편하게 만듦
+        "세부품목": st.column_config.TextColumn("세부품목 (더블클릭)", width="large", help="이 칸을 더블클릭하시면 쉼표로 연결된 전체 품목 내역을 넓게 볼 수 있습니다.")
     }, hide_index=True, use_container_width=True, height=550) 
     
     with action_col2:
