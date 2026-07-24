@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (이모지 제거 및 폰트 진하게 강화) ---
+# --- 커스텀 CSS (표 헤더 강조 및 펜 아이콘 제거 추가) ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -99,6 +99,17 @@ st.markdown("""
     .user-info-name { font-size: 18px !important; font-weight: 900 !important; color: #0369a1 !important; }
     .user-info-sub { font-size: 12px !important; color: #64748b !important; font-weight: bold; }
     .table-header-banner { background-color: #0056b3; color: white; padding: 10px 16px; border-radius: 6px 6px 0 0; font-weight: 900; font-size: 16px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
+
+    /* 💡 [핵심] 표 기둥 제목(Header)의 연필 그림 강제 숨기기 & 글자 초강조 */
+    [data-testid="stDataFrame"] th svg {
+        display: none !important; /* 연필 아이콘 삭제 */
+    }
+    [data-testid="stDataFrame"] th {
+        font-weight: 900 !important; /* 글씨 아주 굵게 */
+        color: #0f172a !important;  /* 진한 네이비/블랙 계열 색상 */
+        font-size: 14px !important;  /* 글씨 크기 확대 */
+        background-color: #f8fafc !important; /* 헤더 배경을 살짝 줘서 구분감 추가 */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -341,7 +352,6 @@ def parse_product_summary(block):
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
     detail_str = " , ".join(prod_lines)
     
-    # 💡 [버그 수정] 정규식 패턴 에러 방지 - (?i)를 맨 앞으로 이동
     detail_str = re.sub(r'(?i)^goods\s*,\s*', '', detail_str)
     
     return cat_summary, detail_str
