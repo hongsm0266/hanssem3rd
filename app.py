@@ -220,6 +220,7 @@ def load_perf_sheet(_gc_client):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
+# 💡 [핵심 보완] 전체 합산 및 대리점별 인원 합산 로직을 완벽하게 재구성!
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
@@ -233,21 +234,28 @@ def get_perf_metrics(perf_df, target_id, target_name):
 
     if target_id == "ALL":
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+        all_names = [v['name'] for v in HC_DB.values()] # 💡 전체 사원 이름 목록
         for _, row in perf_df.iterrows():
             vals = row.values
             if len(vals) < 24: continue
-            sums['F'] += clean_val(vals[4])
-            sums['G'] += clean_val(vals[5])
-            sums['H'] += clean_val(vals[6])
-            sums['I'] += clean_val(vals[7])
-            sums['R'] += clean_val(vals[16])
-            sums['T'] += clean_val(vals[18])
-            sums['U'] += clean_val(vals[19])
-            sums['Y'] += clean_val(vals[23])
+            row_str = "".join([str(x).strip() for x in vals])
+            # 💡 이름 목록에 있는 사람의 행만 완벽하게 캐치해서 더함 (중복되는 소계/합계 방지)
+            if any(n in row_str for n in all_names):
+                sums['F'] += clean_val(vals[4])
+                sums['G'] += clean_val(vals[5])
+                sums['H'] += clean_val(vals[6])
+                sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16])
+                sums['T'] += clean_val(vals[18])
+                sums['U'] += clean_val(vals[19])
+                sums['Y'] += clean_val(vals[23])
+        # 전체 계약율 J 계산 (누적계약 / 누적견적)
+        if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
+        
     elif str(target_id).startswith("DEALER_"):
         dealer_name = str(target_id).replace("DEALER_", "")
-        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name]
+        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name] # 💡 특정 대리점 소속 사원들만
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
@@ -262,7 +270,9 @@ def get_perf_metrics(perf_df, target_id, target_name):
                 sums['T'] += clean_val(vals[18])
                 sums['U'] += clean_val(vals[19])
                 sums['Y'] += clean_val(vals[23])
+        if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
+        
     else:
         possible_ids = [str(target_id), target_name]
         try: possible_ids.append(str(int(target_id))) 
@@ -427,7 +437,6 @@ with col_head_right:
     with sub_col2:
         if st.button("로그아웃"): st.session_state['logged_in'] = False; st.rerun()
         
-    # 💡 [핵심] 마스터 필터에 '모든 인원 전체보기'와 '상권(대리점) 단위 그룹 조회' 기능 모두 추가!
     if is_master:
         if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "🌟 전체보기 (모든 영업사원)"
         dealers = sorted(list(set([info['dealer'] for info in HC_DB.values()])))
@@ -441,7 +450,6 @@ with col_head_right:
             
         selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
-# 💡 [핵심] 선택한 필터에 맞춰 전체 견적 데이터(my_df) 걸러내기
 if is_master:
     my_df = st.session_state['data'].copy()
     if selected_hc == "🌟 전체보기 (모든 영업사원)":
@@ -504,7 +512,6 @@ contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
 st.subheader("영업 실적 현황 (당일 기준)")
 perf_df = load_perf_sheet(client)
 
-# 💡 [핵심] 영업 실적도 마스터 필터 선택에 맞춰서 완벽하게 동기화!
 if is_master:
     if selected_hc == "🌟 전체보기 (모든 영업사원)":
         target_name_perf = "ALL"
@@ -527,8 +534,8 @@ def fmt(n): return f"{int(round(n)):,}"
 def render_metric(label, v_html): return f'<div class="custom-metric"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{v_html}</div></div>'
 
 F_str, G_str, H_str, I_str = fmt(metrics['F']), fmt(metrics['G']), fmt(metrics['H']), fmt(metrics['I'])
-# 대리점(팀) 전체이거나 모두 전체일 경우 계약율(J)은 합산의미가 없으므로 "-"로 깔끔하게 표시
-J_str = f"{int(round(metrics['J']))}%" if str(target_id) != "ALL" and not str(target_id).startswith("DEALER_") else "-"
+# 💡 [보완] 전체 합산 시에도 J(계약율) 값이 정상적으로 출력되도록 수정
+J_str = f"{int(round(metrics['J']))}%" 
 R_str, Y_str = fmt(metrics['R']), fmt(metrics['Y'])
 T_str, U_str = fmt(metrics['T']), fmt(metrics['U'])
 
@@ -567,18 +574,18 @@ m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
 
 st.markdown("---")
 
-# 💡 [핵심] 선택한 인원/상권을 '견적 및 TM 목록' 헤더 옆에 빨간 박스로 아주 강력하게 표시!
+# 💡 [핵심] 마스터 선택 시 나오는 하이라이트 박스 색상을 긍정적이고 잘보이는 파란색(스카이블루)로 변경!
 if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "🌟 전체보기 (모든 영업사원)":
     if "상권 전체보기" in st.session_state['selected_hc']:
         dealer_name = st.session_state['selected_hc'].split("[")[1].split("]")[0]
-        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🏢 [{dealer_name}] 상권 전체 조회 중</span></h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🏢 [{dealer_name}] 상권 전체 조회 중</span></h3>", unsafe_allow_html=True)
     else:
         sel_name = st.session_state['selected_hc'].replace("👤 ", "").split(" (")[0]
         sel_id = next((k for k, v in HC_DB.items() if v['name'] == sel_name), "알수없음")
-        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #dc2626; font-size: 20px; background-color: #fee2e2; padding: 4px 12px; border-radius: 8px; border: 2px solid #fca5a5; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 👤 {sel_name} (사번: {sel_id})</span></h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 👤 {sel_name} (사번: {sel_id})</span></h3>", unsafe_allow_html=True)
 else:
     if is_master:
-        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #2563eb; font-size: 20px; background-color: #dbeafe; padding: 4px 12px; border-radius: 8px; border: 2px solid #bfdbfe; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🌟 모든 영업사원 통합</span></h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🌟 모든 영업사원 통합</span></h3>", unsafe_allow_html=True)
     else:
         st.subheader("견적 및 TM 목록")
 
@@ -590,10 +597,35 @@ if filter_tab == "본인 작성 견적만 보기": display_df = display_df[displ
 
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
+# 💡 [핵심] TM 체크 누락 시 (날짜나 증빙이 없을 때) 연한 빨간색으로 음영 처리하는 기능 추가
+def highlight_missing_tm(row):
+    styles = [''] * len(row)
+    cols = row.index.tolist()
+    for i in [1, 2, 3]:
+        tm_col = f'{i}차_TM'
+        date_col = f'{i}차_TM_일자'
+        proof_col = f'{i}차_증빙'
+        
+        if tm_col in cols and row[tm_col] == True:
+            # 날짜 누락 시 배경을 연한 빨강으로 표시
+            if date_col in cols:
+                val = row[date_col]
+                if pd.isna(val) or str(val).strip() == '' or str(val).strip() == 'None':
+                    styles[cols.index(date_col)] = 'background-color: #fee2e2;' 
+            # 증빙 누락 시 배경을 연한 빨강으로 표시
+            if proof_col in cols:
+                val = row[proof_col]
+                if pd.isna(val) or str(val).strip() == '' or str(val).strip() == 'None':
+                    styles[cols.index(proof_col)] = 'background-color: #fee2e2;'
+    return styles
+
 if not display_df.empty:
     st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>상세 견적 목록 (삭제: 체크 후 1번 누름 / 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
     
-    edited_df = st.data_editor(display_df, column_order=col_order, column_config={
+    # 누락 데이터 자동 음영 로직 스타일 적용
+    styled_df = display_df.style.apply(highlight_missing_tm, axis=1)
+    
+    edited_df = st.data_editor(styled_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
         "상담일": st.column_config.DateColumn("상담일", format="MM/DD", width="small"),
         "상담번호": st.column_config.TextColumn("상담번호", width="small", disabled=True), 
