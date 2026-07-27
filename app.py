@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (PAPERLOGY 폰트 최적화 및 아이콘 보호 적용) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
     /* 💡 PAPERLOGY 웹폰트 CDN 로드 */
@@ -154,10 +154,13 @@ PRODUCT_KEYWORDS = {
     "책상의자 - 알로/조이": ["책상의자", "알로"], "자녀방 책상": ["조이"]
 }
 
+# 💡 [핵심] 삭제 확인용 상태 저장 변수 추가
 if 'logged_in' not in st.session_state: st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
 if 'uploader_key' not in st.session_state: st.session_state['uploader_key'] = 0
+if 'confirm_delete' not in st.session_state: st.session_state['confirm_delete'] = False
+if 'to_del_list' not in st.session_state: st.session_state['to_del_list'] = []
 
 if not st.session_state['logged_in']:
     st.write(""); st.write("")
@@ -181,7 +184,6 @@ today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
 def clean_and_enforce_types(df):
-    # 💡 [핵심] '계약완료금액' 컬럼 신설
     req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '계약완료금액', '상담메모', 'is_self', '세부품목']
     if df is None or df.empty:
         edf = pd.DataFrame(columns=req_cols)
@@ -199,7 +201,6 @@ def clean_and_enforce_types(df):
     for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
     
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
-    # 💡 [핵심] 신설된 계약완료금액 타입 세팅
     df['계약완료금액'] = pd.to_numeric(df['계약완료금액'], errors='coerce').fillna(0).astype(int)
     
     for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙', '세부품목']:
@@ -209,7 +210,6 @@ def clean_and_enforce_types(df):
     return df[req_cols]
 
 def get_or_create_sheet(spreadsheet, sheet_name):
-    # 💡 컬럼 개수 증가 반영 (26 -> 27)
     try: return spreadsheet.worksheet(sheet_name)
     except: return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="27")
 
@@ -303,7 +303,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
-        # 💡 [핵심] 시트 저장 시 '계약완료금액' 포함
         headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '계약완료금액', '상담메모', 'is_self', '세부품목']]
         def _prepare(d):
             safe_list = []
@@ -638,13 +637,20 @@ if not display_df.empty:
         else: alert_list.append("")
     display_df['🚨 TM누락 확인'] = alert_list
 
-# 💡 [핵심] 컬럼 순서에 '계약완료금액' 추가 (계약완료 바로 다음)
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "계약완료금액", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "계약완료금액", "상담메모"]
 
 if not display_df.empty:
     action_placeholder = st.empty()
     
-    st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 바로 위쪽의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
+    # 💡 [핵심] 전체 선택 체크박스 추가!
+    col_banner, col_check = st.columns([3, 1])
+    with col_banner:
+        st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 바로 위쪽의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
+    with col_check:
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        select_all = st.checkbox("✅ 현재 목록 전체 선택", key=f"sel_all_{st.session_state['uploader_key']}")
+        if select_all:
+            display_df['선택/삭제'] = True
     
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
@@ -668,21 +674,41 @@ if not display_df.empty:
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), 
         "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗보기", width="small"),
         "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), 
-        "계약완료금액": st.column_config.NumberColumn("최종계약액", format="%,d", width="small"), # 💡 [핵심] 최종계약액 Number 포맷
+        "계약완료금액": st.column_config.NumberColumn("최종계약액", format="%,d", width="small"),
         "상담메모": st.column_config.TextColumn("상담메모", width="medium")
     }, hide_index=True, use_container_width=True, height=550) 
     
     with action_placeholder.container():
         action_col2, action_col3 = st.columns([1, 1])
         with action_col2:
-            st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
-            if st.button("🗑️ 1번 - 선택한 견적 완전 삭제하기", use_container_width=True):
-                to_del = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
-                if to_del:
-                    with st.spinner("삭제 중..."):
-                        st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_del)])
-                        if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
-                else: st.warning("삭제할 항목을 먼저 체크해 주세요!")
+            # 💡 [핵심] 2단계 삭제 확인 로직 적용
+            if not st.session_state['confirm_delete']:
+                st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
+                if st.button("🗑️ 1번 - 선택한 견적 완전 삭제하기", use_container_width=True):
+                    to_del = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
+                    if to_del:
+                        st.session_state['confirm_delete'] = True
+                        st.session_state['to_del_list'] = to_del
+                        st.rerun()
+                    else: 
+                        st.warning("삭제할 항목을 먼저 체크해 주세요!")
+            else:
+                st.markdown(f"<div style='background-color:#fee2e2; border: 2px solid #ef4444; padding:8px; border-radius:8px; color:#b91c1c; font-weight:900; text-align:center; margin-bottom:8px;'>⚠️ 정말 {len(st.session_state['to_del_list'])}건을 영구 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다!)</div>", unsafe_allow_html=True)
+                del_c1, del_c2 = st.columns(2)
+                with del_c1:
+                    st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
+                    if st.button("✅ 네, 완전히 삭제합니다", use_container_width=True):
+                        with st.spinner("삭제 중..."):
+                            st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(st.session_state['to_del_list'])])
+                            if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): 
+                                st.success("삭제 완료!")
+                                st.session_state['uploader_key'] += 1
+                                st.session_state['confirm_delete'] = False
+                                st.rerun()
+                with del_c2:
+                    if st.button("❌ 아니오, 취소합니다", use_container_width=True):
+                        st.session_state['confirm_delete'] = False
+                        st.rerun()
 
         with action_col3:
             st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
