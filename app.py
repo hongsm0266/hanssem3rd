@@ -42,22 +42,19 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (PAPERLOGY 폰트 최적화 및 아이콘 보호 적용) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
-    /* 💡 PAPERLOGY 웹폰트 CDN 로드 */
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-9Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 
-    /* 💡 텍스트가 표시되는 영역에만 Paperlogy를 확실히 덮어씌움 */
     html, body, p, span, label, button, input, select, textarea, h1, h2, h3, h4, h5, h6, th, td {
         font-family: 'Paperlogy', -apple-system, sans-serif !important;
     }
 
-    /* 🚨 시스템 아이콘 영역(화살표, 구름 등) 폰트 변환 강제 차단 */
     .stIconMaterial, .material-icons, [data-testid*="stIcon"], [data-baseweb="icon"] {
         font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;
         font-weight: 400 !important;
@@ -141,7 +138,6 @@ HC_DB = {
     "00044183": {"name": "김동휘", "dealer": "여수"}
 }
 
-# 💡 [핵심] 매니저님 요청에 따른 상권 그룹핑 매핑 (수정 필요 시 이 부분을 변경하세요!)
 REGION_MAP = {
     "충청상권": ["둔산", "목포", "세종", "충주"], 
     "호남상권": ["익산", "광양", "여수"]
@@ -255,7 +251,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
-    # 💡 [핵심] 상위 그룹인 상권(Region) 단위 실적 합산 로직
+    # 💡 [핵심] 누락되었던 상권별(REGION) 합산 로직 완벽 복구
     elif str(target_id).startswith("REGION_"):
         region_name = str(target_id).replace("REGION_", "")
         allowed_dealers = REGION_MAP.get(region_name, [])
@@ -426,14 +422,11 @@ with col_head_right:
     if is_master:
         if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "🌟 전체보기 (모든 영업사원)"
         dealers = sorted(list(set([info['dealer'] for info in HC_DB.values()])))
-        
-        # 💡 [핵심] 상권 단위 메뉴 필터 추가
         all_hc_list = ["🌟 전체보기 (모든 영업사원)"]
         all_hc_list.append("🌍 [충청상권] 통합 조회")
         all_hc_list.append("🌍 [호남상권] 통합 조회")
         for d in dealers: all_hc_list.append(f"🏢 [{d}] 대리점 전체보기")
         for info in HC_DB.values(): all_hc_list.append(f"👤 {info['name']} ({info['dealer']})")
-        
         selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
 if is_master:
