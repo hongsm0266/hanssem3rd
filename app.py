@@ -367,6 +367,7 @@ def parse_product_summary(block):
         
     cat_summary = " / ".join(top) if top else "기타(홈퍼니싱)"
     detail_str = " , ".join(prod_lines)
+    
     detail_str = re.sub(r'(?i)^goods\s*,\s*', '', detail_str)
     
     return cat_summary, detail_str
@@ -500,8 +501,12 @@ tm1_count = len(my_df[my_df['1차_TM'] == True]) if total_quotes > 0 else 0
 tm2_count = len(my_df[my_df['2차_TM'] == True]) if total_quotes > 0 else 0
 tm3_count = len(my_df[my_df['3차_TM'] == True]) if total_quotes > 0 else 0
 contract_count = int(my_df['계약완료'].sum()) if total_quotes > 0 else 0
-tm_rate = ((tm1_count + tm2_count + tm3_count) / total_quotes * 100) if total_quotes > 0 else 0
+
+# 💡 [핵심] TM 진행률 로직: 1~3차 중 하나라도 TM을 했다면 1건으로 처리하여 최대 100%까지만 나오도록 수정
+tm_done_count = len(my_df[(my_df['1차_TM'] == True) | (my_df['2차_TM'] == True) | (my_df['3차_TM'] == True)]) if total_quotes > 0 else 0
+tm_rate = (tm_done_count / total_quotes * 100) if total_quotes > 0 else 0
 contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
+
 
 # --- 영업 실적 현황 ---
 st.subheader("영업 실적 현황 (당일 기준)")
@@ -588,7 +593,6 @@ with action_col1: filter_tab = st.radio("표시 모드 선택", ["전체 목록 
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] 1차 TM 바로 앞에 딱 '1칸'만 추가하여 누락 내용을 요약 브리핑!
 if not display_df.empty:
     alert_list = []
     for _, row in display_df.iterrows():
@@ -609,7 +613,6 @@ if not display_df.empty:
         
     display_df['🚨 TM누락 확인'] = alert_list
 
-# 💡 TM누락 확인 기둥을 1차_TM 바로 앞으로 순서 변경
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
