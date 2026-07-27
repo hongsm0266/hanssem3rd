@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (PAPERLOGY 폰트 전면 탑재 및 굵기 조합) ---
+# --- 커스텀 CSS (PAPERLOGY 폰트 전면 탑재 및 아이콘 깨짐 방지) ---
 st.markdown("""
 <style>
     /* 💡 PAPERLOGY 웹폰트 CDN 로드 (100~900 전체 굵기 지원) */
@@ -77,9 +77,14 @@ st.markdown("""
         font-display: swap;
     }
 
-    /* 💡 전역 폰트 적용 */
-    html, body, [class*="css"], [class*="st-"], button, input, select, textarea {
-        font-family: 'Paperlogy', -apple-system, sans-serif !important;
+    /* 💡 전역 폰트 적용 (아이콘 깨짐 방지를 위해 안전한 방식으로 적용) */
+    html, body, div, p, span, button, input, select, textarea, h1, h2, h3, h4, h5, h6 {
+        font-family: 'Paperlogy', -apple-system, sans-serif;
+    }
+    
+    /* 🚨 시스템 아이콘 (arrow, upload 등) 깨짐 복구 */
+    .material-icons, [data-testid*="stIcon"], svg {
+        font-family: "Material Icons", sans-serif !important;
     }
 
     .main .block-container,
@@ -567,7 +572,6 @@ filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 �
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] 컨트롤 패널 통합 & 음영 박스 적용!
 col_add, col_up = st.columns([1, 1])
 
 with col_add:
