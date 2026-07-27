@@ -42,19 +42,22 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (PAPERLOGY 폰트 최적화 및 아이콘 보호 적용) ---
 st.markdown("""
 <style>
+    /* 💡 PAPERLOGY 웹폰트 CDN 로드 */
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-9Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
     @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 
+    /* 💡 텍스트가 표시되는 영역에만 Paperlogy를 확실히 덮어씌움 */
     html, body, p, span, label, button, input, select, textarea, h1, h2, h3, h4, h5, h6, th, td {
         font-family: 'Paperlogy', -apple-system, sans-serif !important;
     }
 
+    /* 🚨 시스템 아이콘 영역(화살표, 구름 등) 폰트 변환 강제 차단 */
     .stIconMaterial, .material-icons, [data-testid*="stIcon"], [data-baseweb="icon"] {
         font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;
         font-weight: 400 !important;
@@ -178,11 +181,14 @@ today = date.today()
 my_id, my_name, my_dealer, is_master = st.session_state['hc_id'], st.session_state['hc_name'], st.session_state['dealer'], st.session_state['is_master']
 
 def clean_and_enforce_types(df):
-    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']
+    # 💡 [핵심] '계약완료금액' 컬럼 신설
+    req_cols = ['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '계약완료금액', '상담메모', 'is_self', '세부품목']
     if df is None or df.empty:
         edf = pd.DataFrame(columns=req_cols)
         for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: edf[col] = False
-        edf['견적금액'] = 0; return edf
+        edf['견적금액'] = 0
+        edf['계약완료금액'] = 0
+        return edf
     df = df.copy()
     if '상품(대분류)' in df.columns: df = df.rename(columns={'상품(대분류)': '상품'})
     for col in req_cols:
@@ -191,7 +197,11 @@ def clean_and_enforce_types(df):
         df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
         df[col] = df[col].apply(lambda x: None if pd.isna(x) else x)
     for col in ['선택/삭제', '1차_TM', '2차_TM', '3차_TM', '계약완료', 'is_self']: df[col] = df[col].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True or x == 1 or x == '1' else False).astype(bool)
+    
     df['견적금액'] = pd.to_numeric(df['견적금액'], errors='coerce').fillna(0).astype(int)
+    # 💡 [핵심] 신설된 계약완료금액 타입 세팅
+    df['계약완료금액'] = pd.to_numeric(df['계약완료금액'], errors='coerce').fillna(0).astype(int)
+    
     for col in ['HC_ID', '상담번호', '연락처', '상담메모', '고객명', '주소', '상품', '현장유형', 'HC명', '대리점명', '1차_증빙', '2차_증빙', '3차_증빙', '세부품목']:
         df[col] = df[col].astype(str).replace(['nan', 'NaN', 'None', '<NA>'], '')
         if col == 'HC_ID': df[col] = df[col].str.replace(r'\.0$', '', regex=True).apply(lambda x: x.zfill(8) if x else '')
@@ -199,8 +209,9 @@ def clean_and_enforce_types(df):
     return df[req_cols]
 
 def get_or_create_sheet(spreadsheet, sheet_name):
+    # 💡 컬럼 개수 증가 반영 (26 -> 27)
     try: return spreadsheet.worksheet(sheet_name)
-    except: return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="26")
+    except: return spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="27")
 
 def load_data_from_sheet(gc_client, is_master_mode, current_user):
     try:
@@ -251,7 +262,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
-    # 💡 [핵심] 누락되었던 상권별(REGION) 합산 로직 완벽 복구
     elif str(target_id).startswith("REGION_"):
         region_name = str(target_id).replace("REGION_", "")
         allowed_dealers = REGION_MAP.get(region_name, [])
@@ -293,7 +303,8 @@ def get_perf_metrics(perf_df, target_id, target_name):
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
         spreadsheet = gc_client.open(SHEET_NAME)
-        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '상담메모', 'is_self', '세부품목']]
+        # 💡 [핵심] 시트 저장 시 '계약완료금액' 포함
+        headers = [['선택/삭제', '상담일', '상담번호', 'HC_ID', 'HC명', '대리점명', '고객명', '연락처', '주소', '상품', '현장유형', '견적금액', '1차_TM', '1차_TM_일자', '1차_증빙', '2차_TM', '2차_TM_일자', '2차_증빙', '3차_TM', '3차_TM_일자', '3차_증빙', '계약완료', '계약완료금액', '상담메모', 'is_self', '세부품목']]
         def _prepare(d):
             safe_list = []
             for row in [d.columns.values.tolist()] + d.values.tolist():
@@ -386,7 +397,8 @@ def parse_raw_text(text, master_mode):
                 '연락처': ph_m.group(1) if ph_m else "", '주소': ad_m.group(1) if ad_m else "",
                 '상품': cat_summary, '현장유형': ty_m.group(1) if ty_m else "",
                 '견적금액': int(amt_m.group(1).replace(",", "")) if amt_m else 0,
-                '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '', '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '', '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '', '계약완료': False, '상담메모': '', 'is_self': is_self, '세부품목': detail_str 
+                '1차_TM': False, '1차_TM_일자': None, '1차_증빙': '', '2차_TM': False, '2차_TM_일자': None, '2차_증빙': '', '3차_TM': False, '3차_TM_일자': None, '3차_증빙': '', 
+                '계약완료': False, '계약완료금액': 0, '상담메모': '', 'is_self': is_self, '세부품목': detail_str 
             })
     return pd.DataFrame(records), skipped
 
@@ -626,7 +638,8 @@ if not display_df.empty:
         else: alert_list.append("")
     display_df['🚨 TM누락 확인'] = alert_list
 
-col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
+# 💡 [핵심] 컬럼 순서에 '계약완료금액' 추가 (계약완료 바로 다음)
+col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "계약완료금액", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "계약완료금액", "상담메모"]
 
 if not display_df.empty:
     action_placeholder = st.empty()
@@ -655,6 +668,7 @@ if not display_df.empty:
         "3차_TM_일자": st.column_config.DateColumn("3차 일자", format="MM/DD", width="small"), 
         "3차_증빙": st.column_config.LinkColumn("3차 증빙", display_text="🔗보기", width="small"),
         "계약완료": st.column_config.CheckboxColumn("계약완료", width="small"), 
+        "계약완료금액": st.column_config.NumberColumn("최종계약액", format="%,d", width="small"), # 💡 [핵심] 최종계약액 Number 포맷
         "상담메모": st.column_config.TextColumn("상담메모", width="medium")
     }, hide_index=True, use_container_width=True, height=550) 
     
