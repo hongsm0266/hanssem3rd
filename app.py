@@ -446,7 +446,6 @@ with col_dash:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- 💡 [핵심] 월별 견적 관리 지표 요약본 (최대 최근 2개월) ---
 st.subheader("📊 월별 견적 관리 지표 요약 (최근 2개월)")
 temp_dates = pd.to_datetime(my_df['상담일'], errors='coerce')
 valid_mask = temp_dates.notna()
@@ -462,9 +461,11 @@ if valid_mask.any():
         t_quotes = len(m_df)
         t_tm1 = len(m_df[m_df['1차_TM'] == True])
         t_tm2 = len(m_df[m_df['2차_TM'] == True])
-        t_tm3 = len(mdf[mdf['3차_TM'] == True])
-        t_contract = int(mdf['계약완료'].sum())
-        t_tm_done = len(m_df[(mdf['1차_TM'] == True) | (mdf['2차_TM'] == True) | (mdf['3차_TM'] == True)])
+        
+        # 💡 [핵심] 오타가 수정된 안전한 코드! (mdf -> m_df)
+        t_tm3 = len(m_df[m_df['3차_TM'] == True])
+        t_contract = int(m_df['계약완료'].sum())
+        t_tm_done = len(m_df[(m_df['1차_TM'] == True) | (m_df['2차_TM'] == True) | (m_df['3차_TM'] == True)])
         
         t_tm_rate = (t_tm_done / t_quotes * 100) if t_quotes > 0 else 0
         t_cont_rate = (t_contract / t_quotes * 100) if t_quotes > 0 else 0
@@ -552,7 +553,6 @@ if not display_df.empty:
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    # 💡 [핵심] 액션 버튼 위치를 표 위로 완벽하게 이동시키기 위한 자리 마련!
     action_placeholder = st.empty()
     
     st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 표 상단의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
@@ -582,7 +582,6 @@ if not display_df.empty:
         "상담메모": st.column_config.TextColumn("상담메모", width="medium")
     }, hide_index=True, use_container_width=True, height=550) 
     
-    # 💡 [핵심] 표 내용을 다 불러온 뒤, 마련해둔 위쪽 자리에 버튼 삽입!
     with action_placeholder.container():
         action_col2, action_col3 = st.columns([1, 1])
         with action_col2:
