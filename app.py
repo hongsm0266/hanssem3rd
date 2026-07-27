@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (대시보드 카드 스타일 추가) ---
+# --- 커스텀 CSS ---
 st.markdown("""
 <style>
     .main .block-container,
@@ -77,7 +77,6 @@ st.markdown("""
     [data-testid="stDataFrame"] th svg { display: none !important; }
     [data-testid="stDataFrame"] th { font-weight: 900 !important; color: #0f172a !important; font-size: 14px !important; background-color: #f8fafc !important; }
 
-    /* 💡 [핵심] 대시보드 카드(포스트잇) 그리드 스타일 */
     .dash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px; }
     .dash-card { 
         background: white; border-radius: 8px; padding: 14px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.06); 
@@ -353,7 +352,6 @@ def add_quotes_callback():
         if skipped > 0: st.session_state['warning_msg'] = f"타 사원의 견적 {skipped}건 제외됨."
         st.session_state['raw_input_area'] = ""
 
-# --- 💡 최상단 헤더 + 필터 영역 ---
 col_head_left, col_head_right = st.columns([2, 1])
 with col_head_left:
     st.title("충청호남팀 견적 관리 및 TM 진도")
@@ -388,7 +386,6 @@ else:
 
 st.markdown("---")
 
-# 💡 [핵심] 영업 실적 지표 계산 로직 수행 (카드 UI에 그리기 전 데이터 준비)
 perf_df = load_perf_sheet(client)
 if is_master:
     if selected_hc == "🌟 전체보기 (모든 영업사원)": target_id = target_name_perf = "ALL"
@@ -419,9 +416,8 @@ if metrics['U'] > 0:
 
 combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
 
-# 💡 [핵심] 대시보드 카드(포스트잇 UI)용 HTML 코드
 dash_html = f"""
-<div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1;">
+<div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1; height:100%;">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
         <div style="font-size: 16px; font-weight: 900; color: #0f172a;">🏆 영업 실적 현황 보드</div>
         <div style="font-size: 12px; color: #64748b; font-weight: bold;">(당일 실시간 기준)</div>
@@ -448,28 +444,47 @@ with col_input:
 with col_dash:
     st.markdown(dash_html, unsafe_allow_html=True)
 
-
-total_quotes = len(my_df)
-tm1_count = len(my_df[my_df['1차_TM'] == True]) if total_quotes > 0 else 0
-tm2_count = len(my_df[my_df['2차_TM'] == True]) if total_quotes > 0 else 0
-tm3_count = len(my_df[my_df['3차_TM'] == True]) if total_quotes > 0 else 0
-contract_count = int(my_df['계약완료'].sum()) if total_quotes > 0 else 0
-
-tm_done_count = len(my_df[(my_df['1차_TM'] == True) | (my_df['2차_TM'] == True) | (my_df['3차_TM'] == True)]) if total_quotes > 0 else 0
-tm_rate = (tm_done_count / total_quotes * 100) if total_quotes > 0 else 0
-contract_rate = (contract_count / total_quotes * 100) if total_quotes > 0 else 0
-
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- 📊 내 견적 관리 지표 ---
-st.subheader("📊 견적 관리 지표")
-m1, m2, m3, m4, m5, m6 = st.columns(6)
-m1.metric("총 견적 건수" if is_master else "내 총 견적 건수", f"{total_quotes}건")
-m2.metric("1차 TM 완료", f"{tm1_count}건")
-m3.metric("2차 TM 완료", f"{tm2_count}건")
-m4.metric("3차 TM 완료", f"{tm3_count}건")
-m5.metric("전체 TM 진행률", f"{tm_rate:.1f}%")
-m6.metric("계약 완료(율)", f"{contract_count}건 ({contract_rate:.1f}%)")
+# --- 💡 [핵심] 월별 견적 관리 지표 요약본 (최대 최근 2개월) ---
+st.subheader("📊 월별 견적 관리 지표 요약 (최근 2개월)")
+temp_dates = pd.to_datetime(my_df['상담일'], errors='coerce')
+valid_mask = temp_dates.notna()
+
+if valid_mask.any():
+    ym_series = temp_dates[valid_mask].dt.to_period('M')
+    ym_unique = sorted(ym_series.unique(), reverse=True)[:2]
+    
+    month_cols = st.columns(len(ym_unique))
+    for idx, ym in enumerate(ym_unique):
+        m_df = my_df[valid_mask & (ym_series == ym)]
+        
+        t_quotes = len(m_df)
+        t_tm1 = len(m_df[m_df['1차_TM'] == True])
+        t_tm2 = len(m_df[m_df['2차_TM'] == True])
+        t_tm3 = len(mdf[mdf['3차_TM'] == True])
+        t_contract = int(mdf['계약완료'].sum())
+        t_tm_done = len(m_df[(mdf['1차_TM'] == True) | (mdf['2차_TM'] == True) | (mdf['3차_TM'] == True)])
+        
+        t_tm_rate = (t_tm_done / t_quotes * 100) if t_quotes > 0 else 0
+        t_cont_rate = (t_contract / t_quotes * 100) if t_quotes > 0 else 0
+        
+        with month_cols[idx]:
+            st.markdown(f"""
+            <div style="background:#f8fafc; padding:18px; border-radius:12px; border:2px solid #e2e8f0; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="font-size:18px; font-weight:900; color:#0f172a; margin-bottom:12px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">📅 {ym.year}년 {ym.month}월 요약본</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">총 견적</div><div style="font-size:22px; font-weight:900; color:#2563eb;">{t_quotes}건</div></div>
+                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">전체 TM 진행률</div><div style="font-size:22px; font-weight:900; color:#dc2626;">{t_tm_rate:.1f}%</div></div>
+                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">계약 완료(율)</div><div style="font-size:20px; font-weight:900; color:#10b981;">{t_contract}건 <span style="font-size:14px;">({t_cont_rate:.1f}%)</span></div></div>
+                </div>
+                <div style="font-size:13px; color:#475569; text-align:center; background:#e2e8f0; border-radius:6px; padding:6px;">
+                    <b>✔️ 세부 진행건수</b> : 1차 완료 <b>{t_tm1}</b>건 &nbsp;|&nbsp; 2차 완료 <b>{t_tm2}</b>건 &nbsp;|&nbsp; 3차 완료 <b>{t_tm3}</b>건
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("등록된 견적 데이터가 없습니다.")
 
 st.markdown("---")
 
@@ -490,7 +505,6 @@ filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 �
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] TM 증빙 퀵 업로드 바 (표 바로 위에 가로로 슬림하게 배치!)
 st.markdown("<div class='quick-upload-box'>", unsafe_allow_html=True)
 st.markdown("<span style='font-size: 15px; font-weight: 900; color: #1e293b;'>📸 TM 증빙 퀵 업로더 (적용할 견적을 리스트에서 확인 후 바로 올리세요!)</span>", unsafe_allow_html=True)
 
@@ -519,7 +533,6 @@ st.markdown("</div>", unsafe_allow_html=True)
 if st.session_state['success_msg']: st.success(st.session_state['success_msg']); st.session_state['success_msg'] = ""
 if st.session_state['warning_msg']: st.warning(st.session_state['warning_msg']); st.session_state['warning_msg'] = ""
 
-
 if not display_df.empty:
     alert_list = []
     for _, row in display_df.iterrows():
@@ -534,13 +547,15 @@ if not display_df.empty:
                 if missing: msgs.append(f"{i}차({','.join(missing)})")
         if msgs: alert_list.append(" ".join(msgs))
         else: alert_list.append("")
-        
     display_df['🚨 TM누락 확인'] = alert_list
 
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    st.markdown("<div style='margin-top: 15px;' class='table-header-banner'>상세 견적 목록 (삭제: 체크 후 1번 누름 / 단순 수정: 체크 없이 표 수정 후 2번 누름)</div>", unsafe_allow_html=True)
+    # 💡 [핵심] 액션 버튼 위치를 표 위로 완벽하게 이동시키기 위한 자리 마련!
+    action_placeholder = st.empty()
+    
+    st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 표 상단의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
     
     edited_df = st.data_editor(display_df, column_order=col_order, column_config={
         "선택/삭제": st.column_config.CheckboxColumn("선택/삭제", width="small"), 
@@ -567,31 +582,33 @@ if not display_df.empty:
         "상담메모": st.column_config.TextColumn("상담메모", width="medium")
     }, hide_index=True, use_container_width=True, height=550) 
     
-    action_col2, action_col3 = st.columns([1, 1])
-    with action_col2:
-        st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
-        if st.button("1번 - 견적리스트 내용 완전 삭제하기", use_container_width=True):
-            to_del = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
-            if to_del:
-                with st.spinner("삭제 중..."):
-                    st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_del)])
-                    if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
-            else: st.warning("삭제할 항목을 먼저 체크해 주세요!")
+    # 💡 [핵심] 표 내용을 다 불러온 뒤, 마련해둔 위쪽 자리에 버튼 삽입!
+    with action_placeholder.container():
+        action_col2, action_col3 = st.columns([1, 1])
+        with action_col2:
+            st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
+            if st.button("🗑️ 선택한 견적 완전 삭제하기", use_container_width=True):
+                to_del = edited_df[edited_df['선택/삭제'] == True]['상담번호'].tolist()
+                if to_del:
+                    with st.spinner("삭제 중..."):
+                        st.session_state['data'] = clean_and_enforce_types(st.session_state['data'][~st.session_state['data']['상담번호'].isin(to_del)])
+                        if save_data_to_sheet(client, st.session_state['data'], is_master, my_name): st.success("삭제 완료!"); st.session_state['uploader_key'] += 1; st.rerun()
+                else: st.warning("삭제할 항목을 먼저 체크해 주세요!")
 
-    with action_col3:
-        st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
-        if st.button("2번 - 견적 리스트 작성 / 수정 후\n최종 저장 (필수)", use_container_width=True):
-            with st.spinner("저장 중..."):
-                tdf = edited_df.copy()
-                if '🚨 TM누락 확인' in tdf.columns: tdf = tdf.drop(columns=['🚨 TM누락 확인'])
-                tdf['선택/삭제'] = False 
-                
-                global_df = st.session_state['data'].copy()
-                global_df = global_df.drop(display_df.index, errors='ignore')
-                new_global_df = clean_and_enforce_types(pd.concat([global_df, tdf]).sort_values('상담일').reset_index(drop=True))
-                
-                if save_data_to_sheet(client, new_global_df, is_master, my_name): 
-                    st.session_state['data'] = new_global_df
-                    st.success("안전하게 전체 수정사항이 덮어쓰기 되었습니다!")
-                    st.session_state['uploader_key'] += 1
-                    st.rerun()
+        with action_col3:
+            st.markdown('<span class="yellow-btn"></span>', unsafe_allow_html=True)
+            if st.button("💾 견적 리스트 작성 / 수정 후 최종 저장 (필수)", use_container_width=True):
+                with st.spinner("저장 중..."):
+                    tdf = edited_df.copy()
+                    if '🚨 TM누락 확인' in tdf.columns: tdf = tdf.drop(columns=['🚨 TM누락 확인'])
+                    tdf['선택/삭제'] = False 
+                    
+                    global_df = st.session_state['data'].copy()
+                    global_df = global_df.drop(display_df.index, errors='ignore')
+                    new_global_df = clean_and_enforce_types(pd.concat([global_df, tdf]).sort_values('상담일').reset_index(drop=True))
+                    
+                    if save_data_to_sheet(client, new_global_df, is_master, my_name): 
+                        st.session_state['data'] = new_global_df
+                        st.success("안전하게 전체 수정사항이 덮어쓰기 되었습니다!")
+                        st.session_state['uploader_key'] += 1
+                        st.rerun()
