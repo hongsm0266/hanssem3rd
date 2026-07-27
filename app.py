@@ -90,7 +90,6 @@ st.markdown("""
     .dash-title { font-size: 12px; color: #64748b; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; word-break: keep-all;}
     .dash-value { font-size: 18px; color: #0f172a; font-weight: 900; letter-spacing: -0.5px; word-break: keep-all;}
     
-    /* 💡 [핵심] 입력칸 및 업로드 칸에 파란색 음영이 들어간 예쁜 컨트롤 박스 디자인 */
     [data-testid="stExpander"] {
         background-color: #f8fafc !important;
         border: 2px solid #cbd5e1 !important;
@@ -382,7 +381,10 @@ with col_head_right:
         if is_master: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>{my_name} 님</span></div>", unsafe_allow_html=True)
         else: st.markdown(f"<div class='user-info-box'><span class='user-info-name'>{my_name} 님 ({my_dealer})</span><br><span class='user-info-sub'>사번: {my_id}</span></div>", unsafe_allow_html=True)
     with sub_col2:
-        if st.button("로그아웃"): st.session_state['logged_in'] = False; st.rerun()
+        # 💡 [핵심] 로그아웃 시 메모리에 남아있는 모든 캐시 100% 초기화
+        if st.button("로그아웃"): 
+            st.session_state.clear() 
+            st.rerun()
         
     if is_master:
         if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "🌟 전체보기 (모든 영업사원)"
@@ -434,7 +436,6 @@ if metrics['U'] > 0:
 
 combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
 
-# 💡 [핵심] 영업 실적 현황판 전체 폭 확장
 dash_html = f"""
 <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1; width: 100%;">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
@@ -525,7 +526,6 @@ filter_tab = st.radio("표시 모드 선택", ["전체 목록 보기", "본인 �
 display_df = my_df.copy()
 if filter_tab == "본인 작성 견적만 보기": display_df = display_df[display_df['is_self'] == True]
 
-# 💡 [핵심] 조종석(컨트롤 패널) 통합! - 견적 추가 & 사진 업로드를 나란히 배치
 col_add, col_up = st.columns([1, 1])
 
 with col_add:
@@ -583,7 +583,6 @@ if not display_df.empty:
 col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점명", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"] if is_master else ["선택/삭제", "상담일", "상담번호", "고객명", "연락처", "주소", "상품", "세부품목", "현장유형", "견적금액", "🚨 TM누락 확인", "1차_TM", "1차_TM_일자", "1차_증빙", "2차_TM", "2차_TM_일자", "2차_증빙", "3차_TM", "3차_TM_일자", "3차_증빙", "계약완료", "상담메모"]
 
 if not display_df.empty:
-    # 💡 [핵심] 표 스크롤을 내릴 필요 없이 바로 작업할 수 있도록 버튼을 표 윗단으로 견인!
     action_placeholder = st.empty()
     
     st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 바로 위쪽의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
