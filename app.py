@@ -57,7 +57,7 @@ st.markdown("""
         font-family: 'Paperlogy', -apple-system, sans-serif !important;
     }
 
-    /* 🚨 [핵심 버그 수정] 시스템 아이콘 영역(화살표, 구름 등)은 폰트 변환을 강제 차단하여 그림이 글자로 깨지는 현상(arrow, upload) 완벽 방지 */
+    /* 🚨 시스템 아이콘 영역(화살표, 구름 등) 폰트 변환 강제 차단 */
     .stIconMaterial, .material-icons, [data-testid*="stIcon"], [data-baseweb="icon"] {
         font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;
         font-weight: 400 !important;
@@ -139,6 +139,12 @@ HC_DB = {
     "00043825": {"name": "이은혜", "dealer": "익산"}, "00033249": {"name": "임준수", "dealer": "충주"},
     "00033479": {"name": "류승태", "dealer": "여수"}, "00042423": {"name": "라태현", "dealer": "여수"},
     "00044183": {"name": "김동휘", "dealer": "여수"}
+}
+
+# 💡 [핵심] 매니저님 요청에 따른 상권 그룹핑 매핑 (수정 필요 시 이 부분을 변경하세요!)
+REGION_MAP = {
+    "충청상권": ["둔산", "목포", "세종", "충주"], 
+    "호남상권": ["익산", "광양", "여수"]
 }
 
 PRODUCT_KEYWORDS = {
@@ -245,6 +251,20 @@ def get_perf_metrics(perf_df, target_id, target_name):
             vals = row.values
             if len(vals) < 24: continue
             if any(n in "".join([str(x).strip() for x in vals]) for n in all_names):
+                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
+        if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
+        return sums
+        
+    # 💡 [핵심] 상위 그룹인 상권(Region) 단위 실적 합산 로직
+    elif str(target_id).startswith("REGION_"):
+        region_name = str(target_id).replace("REGION_", "")
+        allowed_dealers = REGION_MAP.get(region_name, [])
+        dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] in allowed_dealers]
+        sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+        for _, row in perf_df.iterrows():
+            vals = row.values
+            if len(vals) < 24: continue
+            if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
                 sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
@@ -406,16 +426,26 @@ with col_head_right:
     if is_master:
         if 'selected_hc' not in st.session_state: st.session_state['selected_hc'] = "🌟 전체보기 (모든 영업사원)"
         dealers = sorted(list(set([info['dealer'] for info in HC_DB.values()])))
+        
+        # 💡 [핵심] 상권 단위 메뉴 필터 추가
         all_hc_list = ["🌟 전체보기 (모든 영업사원)"]
-        for d in dealers: all_hc_list.append(f"🏢 [{d}] 상권 전체보기")
+        all_hc_list.append("🌍 [충청상권] 통합 조회")
+        all_hc_list.append("🌍 [호남상권] 통합 조회")
+        for d in dealers: all_hc_list.append(f"🏢 [{d}] 대리점 전체보기")
         for info in HC_DB.values(): all_hc_list.append(f"👤 {info['name']} ({info['dealer']})")
+        
         selected_hc = st.selectbox("마스터 전용 조회 필터", all_hc_list, key="selected_hc")
 
 if is_master:
     my_df = st.session_state['data'].copy()
     if selected_hc == "🌟 전체보기 (모든 영업사원)": pass
-    elif "상권 전체보기" in selected_hc:
-        my_df = my_df[my_df['대리점명'] == selected_hc.split("[")[1].split("]")[0]]
+    elif "통합 조회" in selected_hc:
+        region_name = selected_hc.split("[")[1].split("]")[0]
+        allowed_dealers = REGION_MAP.get(region_name, [])
+        my_df = my_df[my_df['대리점명'].isin(allowed_dealers)]
+    elif "대리점 전체보기" in selected_hc:
+        dealer_name = selected_hc.split("[")[1].split("]")[0]
+        my_df = my_df[my_df['대리점명'] == dealer_name]
     else:
         my_df = my_df[my_df['HC명'] == selected_hc.replace("👤 ", "").split(" (")[0]]
 else: 
@@ -426,7 +456,10 @@ st.markdown("---")
 perf_df = load_perf_sheet(client)
 if is_master:
     if selected_hc == "🌟 전체보기 (모든 영업사원)": target_id = target_name_perf = "ALL"
-    elif "상권 전체보기" in selected_hc:
+    elif "통합 조회" in selected_hc:
+        region_name = selected_hc.split("[")[1].split("]")[0]
+        target_id = target_name_perf = f"REGION_{region_name}"
+    elif "대리점 전체보기" in selected_hc:
         dealer_name = selected_hc.split("[")[1].split("]")[0]
         target_id = target_name_perf = f"DEALER_{dealer_name}"
     else:
@@ -527,9 +560,12 @@ else:
 st.markdown("---")
 
 if is_master and 'selected_hc' in st.session_state and st.session_state['selected_hc'] != "🌟 전체보기 (모든 영업사원)":
-    if "상권 전체보기" in st.session_state['selected_hc']:
+    if "통합 조회" in st.session_state['selected_hc']:
+        region_name = st.session_state['selected_hc'].split("[")[1].split("]")[0]
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🌍 [{region_name}] 통합 조회 중</span></h3>", unsafe_allow_html=True)
+    elif "대리점 전체보기" in st.session_state['selected_hc']:
         dealer_name = st.session_state['selected_hc'].split("[")[1].split("]")[0]
-        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🏢 [{dealer_name}] 상권 전체 조회 중</span></h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3>견적 및 TM 목록 <span style='color: #0369a1; font-size: 20px; background-color: #e0f2fe; padding: 4px 12px; border-radius: 8px; border: 2px solid #7dd3fc; margin-left: 8px; vertical-align: middle;'>👉 현재 선택: 🏢 [{dealer_name}] 대리점 전체 조회 중</span></h3>", unsafe_allow_html=True)
     else:
         sel_name = st.session_state['selected_hc'].replace("👤 ", "").split(" (")[0]
         sel_id = next((k for k, v in HC_DB.items() if v['name'] == sel_name), "알수없음")
