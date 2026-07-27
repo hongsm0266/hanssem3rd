@@ -154,7 +154,6 @@ PRODUCT_KEYWORDS = {
     "책상의자 - 알로/조이": ["책상의자", "알로"], "자녀방 책상": ["조이"]
 }
 
-# 💡 [핵심] 삭제 확인용 상태 저장 변수 추가
 if 'logged_in' not in st.session_state: st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
@@ -490,10 +489,11 @@ if metrics['U'] > 0:
 
 combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
 
+# 💡 [핵심] 타이틀 변경
 dash_html = f"""
 <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1; width: 100%;">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
-        <div style="font-size: 16px; font-weight: 900; color: #0f172a;">🏆 영업 실적 현황 보드</div>
+        <div style="font-size: 16px; font-weight: 900; color: #0f172a;">🏆 영업 VDT 실적 현황</div>
         <div style="font-size: 12px; color: #64748b; font-weight: bold;">(당일 실시간 기준)</div>
     </div>
     <div class="dash-grid">
@@ -642,7 +642,6 @@ col_order = ["선택/삭제", "상담일", "상담번호", "HC명", "대리점�
 if not display_df.empty:
     action_placeholder = st.empty()
     
-    # 💡 [핵심] 전체 선택 체크박스 추가!
     col_banner, col_check = st.columns([3, 1])
     with col_banner:
         st.markdown("<div style='margin-top: 5px;' class='table-header-banner'>상세 견적 목록 (수정 후 바로 위쪽의 '저장' 버튼을 꼭 눌러주세요!)</div>", unsafe_allow_html=True)
@@ -681,7 +680,6 @@ if not display_df.empty:
     with action_placeholder.container():
         action_col2, action_col3 = st.columns([1, 1])
         with action_col2:
-            # 💡 [핵심] 2단계 삭제 확인 로직 적용
             if not st.session_state['confirm_delete']:
                 st.markdown('<span class="red-btn"></span>', unsafe_allow_html=True)
                 if st.button("🗑️ 1번 - 선택한 견적 완전 삭제하기", use_container_width=True):
