@@ -42,49 +42,25 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS (PAPERLOGY 폰트 전면 탑재 및 아이콘 깨짐 방지) ---
+# --- 커스텀 CSS (PAPERLOGY 폰트 최적화 및 아이콘 보호 적용) ---
 st.markdown("""
 <style>
-    /* 💡 PAPERLOGY 웹폰트 CDN 로드 (100~900 전체 굵기 지원) */
-    @font-face {
-        font-family: 'Paperlogy';
-        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8Bold.woff2') format('woff2');
-        font-weight: 700;
-        font-display: swap;
-    }
-    @font-face {
-        font-family: 'Paperlogy';
-        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-9Black.woff2') format('woff2');
-        font-weight: 900;
-        font-display: swap;
-    }
-    @font-face {
-        font-family: 'Paperlogy';
-        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2');
-        font-weight: 600;
-        font-display: swap;
-    }
-    @font-face {
-        font-family: 'Paperlogy';
-        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2');
-        font-weight: 500;
-        font-display: swap;
-    }
-    @font-face {
-        font-family: 'Paperlogy';
-        src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2');
-        font-weight: 400;
-        font-display: swap;
+    /* 💡 PAPERLOGY 웹폰트 CDN 로드 */
+    @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-9Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
+    @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+    @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Paperlogy'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+
+    /* 💡 텍스트가 표시되는 영역에만 Paperlogy를 확실히 덮어씌움 */
+    html, body, p, span, label, button, input, select, textarea, h1, h2, h3, h4, h5, h6, th, td {
+        font-family: 'Paperlogy', -apple-system, sans-serif !important;
     }
 
-    /* 💡 전역 폰트 적용 (아이콘 깨짐 방지를 위해 안전한 방식으로 적용) */
-    html, body, div, p, span, button, input, select, textarea, h1, h2, h3, h4, h5, h6 {
-        font-family: 'Paperlogy', -apple-system, sans-serif;
-    }
-    
-    /* 🚨 시스템 아이콘 (arrow, upload 등) 깨짐 복구 */
-    .material-icons, [data-testid*="stIcon"], svg {
-        font-family: "Material Icons", sans-serif !important;
+    /* 🚨 [핵심 버그 수정] 시스템 아이콘 영역(화살표, 구름 등)은 폰트 변환을 강제 차단하여 그림이 글자로 깨지는 현상(arrow, upload) 완벽 방지 */
+    .stIconMaterial, .material-icons, [data-testid*="stIcon"], [data-baseweb="icon"] {
+        font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;
+        font-weight: 400 !important;
     }
 
     .main .block-container,
@@ -95,15 +71,12 @@ st.markdown("""
         padding-top: 1.5rem !important; padding-bottom: 1rem !important;
     }
     
-    /* 💡 제목: Heavy Black 900 적용 */
     h1, h2, h3 { font-weight: 900 !important; color: #0f172a !important; font-size: 24px !important; letter-spacing: -0.5px !important; }
 
     .login-card-title { color: #0f172a; font-size: 22px !important; font-weight: 900 !important; margin-top: 15px; margin-bottom: 5px; }
     .login-card-sub { color: #64748b; font-size: 13px; margin-bottom: 20px; font-weight: 600; }
     
-    /* 💡 버튼: Bold 700~800 적용 */
     div.stButton > button { 
-        font-family: 'Paperlogy', sans-serif !important;
         background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important; color: white !important; font-size: 15px !important; font-weight: 800 !important; 
         border-radius: 8px !important; padding: 10px 15px !important; border: none !important; height: auto !important; min-height: 45px; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
         border-bottom: 4px solid #1e3a8a !important; transition: all 0.1s ease !important; 
@@ -119,9 +92,8 @@ st.markdown("""
     .user-info-sub { font-size: 12px !important; color: #64748b !important; font-weight: 600; }
     .table-header-banner { background-color: #0056b3; color: white; padding: 10px 16px; border-radius: 6px 6px 0 0; font-weight: 800; font-size: 16px; margin-bottom: -10px; display: flex; justify-content: space-between; align-items: center;}
 
-    /* 💡 표 폰트 조절 */
     [data-testid="stDataFrame"] th svg { display: none !important; }
-    [data-testid="stDataFrame"] th { font-family: 'Paperlogy', sans-serif !important; font-weight: 900 !important; color: #0f172a !important; font-size: 14px !important; background-color: #f8fafc !important; }
+    [data-testid="stDataFrame"] th { font-weight: 900 !important; color: #0f172a !important; font-size: 14px !important; background-color: #f8fafc !important; }
 
     .dash-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 8px; }
     .dash-card { 
@@ -150,7 +122,6 @@ st.markdown("""
         border-bottom: 1px solid #bae6fd !important;
     }
     [data-testid="stExpander"] summary p {
-        font-family: 'Paperlogy', sans-serif !important;
         font-size: 16px !important;
         font-weight: 900 !important;
         color: #0369a1 !important;
