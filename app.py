@@ -42,7 +42,7 @@ if os.path.exists("logo.png"): HANSSEM_CI_URL = "logo.png"
 elif os.path.exists("hanssem.png"): HANSSEM_CI_URL = "hanssem.png"
 else: HANSSEM_CI_URL = "https://raw.githubusercontent.com/github/explore/main/topics/png/png.png"
 
-# --- 커스텀 CSS ---
+# --- 커스텀 CSS (PAPERLOGY 폰트 최적화 및 아이콘 보호 적용) ---
 st.markdown("""
 <style>
     /* 💡 PAPERLOGY 웹폰트 CDN 로드 */
@@ -129,10 +129,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 🚨 신규 인원 3명 소속(둔산) 완벽 반영
 HC_DB = {
     "00033448": {"name": "장재형", "dealer": "둔산"}, "00038617": {"name": "이대운", "dealer": "둔산"},
-    "00045152": {"name": "천민선", "dealer": "둔산"}, "00045153": {"name": "박준수", "dealer": "둔산"},
-    "00043761": {"name": "한지훈", "dealer": "둔산"},
     "00041990": {"name": "강지인", "dealer": "둔산"}, "00040110": {"name": "장영종", "dealer": "광양"},
     "00040112": {"name": "임현", "dealer": "광양"}, "00040113": {"name": "하행우", "dealer": "광양"},
     "00042008": {"name": "김경율", "dealer": "세종"}, "00044932": {"name": "강희성", "dealer": "세종"},
@@ -140,7 +139,10 @@ HC_DB = {
     "00040755": {"name": "윤덕수", "dealer": "목포"}, "00043657": {"name": "최병하", "dealer": "익산"},
     "00043825": {"name": "이은혜", "dealer": "익산"}, "00033249": {"name": "임준수", "dealer": "충주"},
     "00033479": {"name": "류승태", "dealer": "여수"}, "00042423": {"name": "라태현", "dealer": "여수"},
-    "00044183": {"name": "김동휘", "dealer": "여수"}
+    "00044183": {"name": "김동휘", "dealer": "여수"},
+    "00045152": {"name": "천민선", "dealer": "둔산"},
+    "00045153": {"name": "박준수", "dealer": "둔산"},
+    "00043761": {"name": "한지훈", "dealer": "둔산"}
 }
 
 REGION_MAP = {
@@ -235,11 +237,9 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
 def load_perf_sheet(_gc_client):
     try:
         data = _gc_client.open(SHEET_NAME).worksheet("시트1").get("B30:AG70")
-        if data and len(data) > 1:
-            headers = [str(h).strip() for h in data[0]]
-            rows = data[1:]
-            safe_rows = [r + [''] * (len(headers) - len(r)) for r in rows]
-            return pd.DataFrame(safe_rows, columns=headers)
+        if data:
+            safe_rows = [r + [''] * (32 - len(r)) for r in data]
+            return pd.DataFrame(safe_rows)
         return pd.DataFrame()
     except: return pd.DataFrame()
 
@@ -257,7 +257,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         all_names = [v['name'] for v in HC_DB.values()]
         for _, row in perf_df.iterrows():
             vals = row.values
-            if len(vals) < 24: continue
             if any(n in "".join([str(x).strip() for x in vals]) for n in all_names):
                 sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
@@ -270,7 +269,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
-            if len(vals) < 24: continue
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
                 sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
@@ -282,7 +280,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
-            if len(vals) < 24: continue
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
                 sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
@@ -292,7 +289,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         possible_ids = [str(target_id), target_name, str(int(target_id)) if str(target_id).isdigit() else ""]
         for _, row in perf_df.iterrows():
             vals = row.values
-            if len(vals) < 24: continue
             if any(pid in "".join([str(x).strip() for x in vals]) for pid in possible_ids if pid):
                 j_val = clean_val(vals[8])
                 if 0 < j_val <= 1.0 and "%" not in str(vals[8]): j_val *= 100
@@ -491,7 +487,6 @@ if metrics['U'] > 0:
 
 combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
 
-# 💡 [핵심] 타이틀 변경
 dash_html = f"""
 <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1; width: 100%;">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 8px;">
