@@ -150,14 +150,6 @@ REGION_MAP = {
     "호남상권": ["익산", "광양", "여수"]
 }
 
-PRODUCT_KEYWORDS = {
-    "침실단품": ["화장대", "서랍장", "리즈"], "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
-    "침실": ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"],
-    "거실": ["소파", "리클라이너", "스위브", "뉴플루드", "인피니", "뉴인피니", "테이즈", "키안티", "페타", "플로에", "거실장", "아카이브", "MVME"],
-    "다이닝": ["식탁", "테이블", "식탁의자", "디아고", "리브업", "인칸토", "리니아"],
-    "책상의자 - 알로/조이": ["책상의자", "알로"], "자녀방 책상": ["조이"]
-}
-
 if 'logged_in' not in st.session_state: st.session_state.update({'logged_in': False, 'hc_id': '', 'hc_name': '', 'dealer': '', 'is_master': False})
 if 'success_msg' not in st.session_state: st.session_state['success_msg'] = ""
 if 'warning_msg' not in st.session_state: st.session_state['warning_msg'] = ""
@@ -326,7 +318,10 @@ def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     except: return False
 
 if 'data' not in st.session_state:
-    st.session_state['data'] = load_data_from_sheet(client, is_master, my_name) if client else clean_and_enforce_types(None)
+    loaded_data = load_data_from_sheet(client, is_master, my_name) if client else clean_and_enforce_types(None)
+    if loaded_data is not None and not loaded_data.empty:
+        loaded_data = loaded_data.sort_values(by='상담일', ascending=False).reset_index(drop=True)
+    st.session_state['data'] = loaded_data
 
 def upload_to_imgbb(file_obj, file_name):
     try:
@@ -404,7 +399,7 @@ def add_quotes_callback():
         new_df, skipped = parse_raw_text(txt, is_master)
         if not new_df.empty:
             ldf = load_data_from_sheet(client, is_master, my_name)
-            udf = clean_and_enforce_types(pd.concat([ldf, new_df], ignore_index=True) if not ldf.empty else new_df).sort_values(by='상담일', ascending=True).reset_index(drop=True)
+            udf = clean_and_enforce_types(pd.concat([ldf, new_df], ignore_index=True) if not ldf.empty else new_df).sort_values(by='상담일', ascending=False).reset_index(drop=True)
             if save_data_to_sheet(client, udf, is_master, my_name):
                 st.session_state.update({'data': udf, 'success_msg': f"성공적으로 {len(new_df)}건을 추가했습니다!", 'uploader_key': st.session_state['uploader_key'] + 1})
         else: st.session_state['warning_msg'] = "추가된 견적이 없습니다."
@@ -715,7 +710,7 @@ if not display_df.empty:
                     
                     global_df = st.session_state['data'].copy()
                     global_df = global_df.drop(display_df.index, errors='ignore')
-                    new_global_df = clean_and_enforce_types(pd.concat([global_df, tdf]).sort_values('상담일').reset_index(drop=True))
+                    new_global_df = clean_and_enforce_types(pd.concat([global_df, tdf]).sort_values(by='상담일', ascending=False).reset_index(drop=True))
                     
                     if save_data_to_sheet(client, new_global_df, is_master, my_name): 
                         st.session_state['data'] = new_global_df
