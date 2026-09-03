@@ -512,55 +512,71 @@ dash_html = f"""
 st.markdown(dash_html, unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
+# -------------------------------------------------------------
+# 🚀 9월/8월 고정 반영을 위한 로직 수정 부문
+# -------------------------------------------------------------
 st.subheader("📊 월별 견적 관리 지표 요약 (최근 2개월)")
+
+# 1. 실제 데이터에서 변환 시도
 temp_dates = pd.to_datetime(my_df['상담일'], errors='coerce')
 valid_mask = temp_dates.notna()
 
+# 2. 유효한 데이터가 있으면 그걸 쓰고 없으면 빈 Series 생성
 if valid_mask.any():
     ym_series = temp_dates[valid_mask].dt.to_period('M')
-    ym_unique = sorted(ym_series.unique(), reverse=True)[:2]
-    
-    month_cols = st.columns(len(ym_unique))
-    for idx, ym in enumerate(ym_unique):
-        m_df = my_df[valid_mask & (ym_series == ym)]
-        
-        t_quotes = len(m_df)
-        t_tm1 = len(m_df[m_df['1차_TM'] == True])
-        t_tm2 = len(m_df[m_df['2차_TM'] == True])
-        t_tm3 = len(m_df[m_df['3차_TM'] == True])
-        t_contract = int(m_df['계약완료'].sum())
-        t_tm_done = len(m_df[(m_df['1차_TM'] == True) | (m_df['2차_TM'] == True) | (m_df['3차_TM'] == True)])
-        
-        t_tm_rate = (t_tm_done / t_quotes * 100) if t_quotes > 0 else 0
-        t_cont_rate = (t_contract / t_quotes * 100) if t_quotes > 0 else 0
-        
-        month_badge = ""
-        if idx == 0:
-            month_badge = "<span style='color:white; background-color:#3b82f6; font-size:12px; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle;'>(당월)</span>"
-        elif idx == 1:
-            month_badge = "<span style='color:white; background-color:#f59e0b; font-size:12px; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle;'>(전월)</span>"
-        
-        with month_cols[idx]:
-            st.markdown(f"""
-            <div style="background:#f8fafc; padding:18px; border-radius:12px; border:2px solid #e2e8f0; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <div style="font-size:18px; font-weight:900; color:#0f172a; margin-bottom:12px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
-                    📅 {ym.year}년 {ym.month}월 요약본 {month_badge}
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">총 견적</div><div style="font-size:22px; font-weight:900; color:#2563eb;">{t_quotes}건</div></div>
-                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">전체 TM 진행률</div><div style="font-size:22px; font-weight:900; color:#dc2626;">{t_tm_rate:.1f}%</div></div>
-                    <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">계약 완료(율)</div><div style="font-size:20px; font-weight:900; color:#10b981;">{t_contract}건 <span style="font-size:14px;">({t_cont_rate:.1f}%)</span></div></div>
-                </div>
-                <div style="font-size:15px; color:#334155; text-align:center; background:#e2e8f0; border-radius:8px; padding:10px; margin-top: 8px;">
-                    <b style="color:#0f172a; font-size:16px;">✔️ 세부 진행건수</b> &nbsp;👉&nbsp;
-                    1차 완료 <span style="font-size:18px; font-weight:900; color:#2563eb;">{t_tm1}</span>건 &nbsp;|&nbsp; 
-                    2차 완료 <span style="font-size:18px; font-weight:900; color:#10b981;">{t_tm2}</span>건 &nbsp;|&nbsp; 
-                    3차 완료 <span style="font-size:18px; font-weight:900; color:#8b5cf6;">{t_tm3}</span>건
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 else:
-    st.info("등록된 견적 데이터가 없습니다.")
+    ym_series = pd.Series(dtype='period[M]')
+
+# 3. 🚀 데이터 기준이 아닌, '현재 접속한 오늘 날짜(today)' 기준으로 당월/전월 명시적 고정
+curr_period = pd.Period(today.strftime('%Y-%m'))
+prev_period = curr_period - 1
+
+# 무조건 현재 월(예: 9월), 그 이전 월(예: 8월) 리스트화
+ym_unique = [curr_period, prev_period]
+
+month_cols = st.columns(len(ym_unique))
+for idx, ym in enumerate(ym_unique):
+    # 해당 월의 데이터 필터링
+    if valid_mask.any():
+        m_df = my_df[valid_mask & (ym_series == ym)]
+    else:
+        m_df = pd.DataFrame()
+        
+    t_quotes = len(m_df)
+    t_tm1 = len(m_df[m_df['1차_TM'] == True]) if not m_df.empty else 0
+    t_tm2 = len(m_df[m_df['2차_TM'] == True]) if not m_df.empty else 0
+    t_tm3 = len(m_df[m_df['3차_TM'] == True]) if not m_df.empty else 0
+    t_contract = int(m_df['계약완료'].sum()) if not m_df.empty else 0
+    t_tm_done = len(m_df[(m_df['1차_TM'] == True) | (m_df['2차_TM'] == True) | (m_df['3차_TM'] == True)]) if not m_df.empty else 0
+    
+    t_tm_rate = (t_tm_done / t_quotes * 100) if t_quotes > 0 else 0
+    t_cont_rate = (t_contract / t_quotes * 100) if t_quotes > 0 else 0
+    
+    month_badge = ""
+    if idx == 0:
+        month_badge = "<span style='color:white; background-color:#3b82f6; font-size:12px; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle;'>(당월)</span>"
+    elif idx == 1:
+        month_badge = "<span style='color:white; background-color:#f59e0b; font-size:12px; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle;'>(전월)</span>"
+    
+    with month_cols[idx]:
+        st.markdown(f"""
+        <div style="background:#f8fafc; padding:18px; border-radius:12px; border:2px solid #e2e8f0; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="font-size:18px; font-weight:900; color:#0f172a; margin-bottom:12px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+                📅 {ym.year}년 {ym.month}월 요약본 {month_badge}
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">총 견적</div><div style="font-size:22px; font-weight:900; color:#2563eb;">{t_quotes}건</div></div>
+                <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">전체 TM 진행률</div><div style="font-size:22px; font-weight:900; color:#dc2626;">{t_tm_rate:.1f}%</div></div>
+                <div style="text-align:center;"><div style="font-size:13px; color:#64748b; font-weight:bold;">계약 완료(율)</div><div style="font-size:20px; font-weight:900; color:#10b981;">{t_contract}건 <span style="font-size:14px;">({t_cont_rate:.1f}%)</span></div></div>
+            </div>
+            <div style="font-size:15px; color:#334155; text-align:center; background:#e2e8f0; border-radius:8px; padding:10px; margin-top: 8px;">
+                <b style="color:#0f172a; font-size:16px;">✔️ 세부 진행건수</b> &nbsp;👉&nbsp;
+                1차 완료 <span style="font-size:18px; font-weight:900; color:#2563eb;">{t_tm1}</span>건 &nbsp;|&nbsp; 
+                2차 완료 <span style="font-size:18px; font-weight:900; color:#10b981;">{t_tm2}</span>건 &nbsp;|&nbsp; 
+                3차 완료 <span style="font-size:18px; font-weight:900; color:#8b5cf6;">{t_tm3}</span>건
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 st.markdown("---")
 
