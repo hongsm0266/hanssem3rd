@@ -150,7 +150,7 @@ REGION_MAP = {
     "호남상권": ["익산", "광양", "여수"]
 }
 
-# 🚀 [추가복구] 상품 분류 키워드 딕셔너리 (견적 파싱 시 필수)
+# 🚀 상품 분류 키워드 딕셔너리 (견적 파싱 시 필수)
 PRODUCT_KEYWORDS = {
     "침실단품": ["화장대", "서랍장", "리즈"], "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
     "침실": ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"],
@@ -234,7 +234,7 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
             return clean_and_enforce_types(pd.DataFrame(records) if records else None)
     except: return clean_and_enforce_types(None)
 
-# 🚀 [수정 완벽 반영] B32:AG200 으로 범위 확대, 캐시 시간 60초 증가, 에러 Toast 띄우기
+# 🚀 [수정 완벽 반영] B32:AG200 으로 범위 확대, 캐시 시간 60초 증가, 캐시 에러 방지를 위해 st.toast 제거
 @st.cache_data(ttl=60) 
 def load_perf_sheet(_gc_client):
     try:
@@ -244,10 +244,11 @@ def load_perf_sheet(_gc_client):
             return pd.DataFrame(safe_rows)
         return pd.DataFrame()
     except Exception as e:
-        st.toast(f"VDT 데이터를 가져오지 못했습니다 (API 한도 또는 시트 오류): {e}", icon="⚠️")
+        # 캐시된 함수 내에서는 st.toast 사용 시 에러(CacheReplayClosureError)가 발생하므로 print로 처리
+        print(f"VDT 데이터를 가져오지 못했습니다 (API 한도 또는 시트 오류): {e}")
         return pd.DataFrame()
 
-# 🚀 [수정 완벽 반영] 김경율 등 중복 인원 실적 합산, ALL 검색 지원 로직
+# 🚀 [수정 완벽 반영] 개인 조회 시 여러 줄 합산, ALL 검색 지원 로직
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
@@ -290,7 +291,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
         return sums
         
     else:
-        # 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
+        # 🚀 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
         possible_ids = [str(target_id), target_name, str(int(target_id)) if str(target_id).isdigit() else ""]
         for _, row in perf_df.iterrows():
             vals = row.values
@@ -305,7 +306,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
                 sums['U'] += clean_val(vals[19])
                 sums['Y'] += clean_val(vals[23])
                 
-        # 최종적으로 전체 더해진 값 기반으로 계약율 계산
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
 
