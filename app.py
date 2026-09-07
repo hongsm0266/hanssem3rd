@@ -244,6 +244,7 @@ def load_perf_sheet(_gc_client):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
+# 🚀 [수정] 김경율님 처럼 2줄로 나오는 인원 데이터 완전 통합을 위해 aggregate 방식으로 변경
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
@@ -253,8 +254,9 @@ def get_perf_metrics(perf_df, target_id, target_name):
         try: return float(str(v).replace('%', '').replace(',', '').replace('원', '').strip())
         except: return 0.0
 
+    sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+
     if target_id == "ALL":
-        sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         all_names = [v['name'] for v in HC_DB.values()]
         for _, row in perf_df.iterrows():
             vals = row.values
@@ -267,7 +269,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
         region_name = str(target_id).replace("REGION_", "")
         allowed_dealers = REGION_MAP.get(region_name, [])
         dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] in allowed_dealers]
-        sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
@@ -278,7 +279,6 @@ def get_perf_metrics(perf_df, target_id, target_name):
     elif str(target_id).startswith("DEALER_"):
         dealer_name = str(target_id).replace("DEALER_", "")
         dealer_names = [v['name'] for v in HC_DB.values() if v['dealer'] == dealer_name]
-        sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
         for _, row in perf_df.iterrows():
             vals = row.values
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
@@ -287,16 +287,24 @@ def get_perf_metrics(perf_df, target_id, target_name):
         return sums
         
     else:
+        # 🚀 [수정] 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
         possible_ids = [str(target_id), target_name, str(int(target_id)) if str(target_id).isdigit() else ""]
         for _, row in perf_df.iterrows():
             vals = row.values
-            if any(pid in "".join([str(x).strip() for x in vals]) for pid in possible_ids if pid):
-                j_val = clean_val(vals[8])
-                if 0 < j_val <= 1.0 and "%" not in str(vals[8]): j_val *= 100
-                return {
-                    'F': clean_val(vals[4]), 'G': clean_val(vals[5]), 'H': clean_val(vals[6]), 'I': clean_val(vals[7]), 'J': j_val, 'R': clean_val(vals[16]), 'T': clean_val(vals[18]), 'U': clean_val(vals[19]), 'Y': clean_val(vals[23])
-                }
-        return default
+            row_str = "".join([str(x).strip() for x in vals])
+            if any(pid in row_str for pid in possible_ids if pid):
+                sums['F'] += clean_val(vals[4])
+                sums['G'] += clean_val(vals[5])
+                sums['H'] += clean_val(vals[6])
+                sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16])
+                sums['T'] += clean_val(vals[18])
+                sums['U'] += clean_val(vals[19])
+                sums['Y'] += clean_val(vals[23])
+                
+        # 최종적으로 전체 더해진 값 기반으로 계약율 계산
+        if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
+        return sums
 
 def save_data_to_sheet(gc_client, df, is_master_mode, current_user):
     try:
