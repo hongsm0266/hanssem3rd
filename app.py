@@ -130,6 +130,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 🚨 신규 인원 3명 소속(둔산) 완벽 반영
+# [안내] 합계에 누락되는 인원(예: 신재민)이 있다면 이 딕셔너리에 반드시 추가하셔야 합니다!
 HC_DB = {
     "00033448": {"name": "장재형", "dealer": "둔산"}, "00038617": {"name": "이대운", "dealer": "둔산"},
     "00041990": {"name": "강지인", "dealer": "둔산"}, "00040110": {"name": "장영종", "dealer": "광양"},
@@ -150,7 +151,6 @@ REGION_MAP = {
     "호남상권": ["익산", "광양", "여수"]
 }
 
-# 🚀 상품 분류 키워드 딕셔너리 (견적 파싱 시 필수)
 PRODUCT_KEYWORDS = {
     "침실단품": ["화장대", "서랍장", "리즈"], "수납": ["붙박이장", "드레스룸", "옷장", "샘키즈", "샘베딩", "뮤트", "스케치", "아임빅", "바흐"],
     "침실": ["침대", "매트리스", "포시즌", "노뜨", "그로브오크", "포에트", "호텔침대", "어반글로우"],
@@ -234,7 +234,6 @@ def load_data_from_sheet(gc_client, is_master_mode, current_user):
             return clean_and_enforce_types(pd.DataFrame(records) if records else None)
     except: return clean_and_enforce_types(None)
 
-# 🚀 [수정 완벽 반영] B32:AG200 으로 범위 확대, 캐시 시간 60초 증가, 캐시 에러 방지를 위해 st.toast 제거
 @st.cache_data(ttl=60) 
 def load_perf_sheet(_gc_client):
     try:
@@ -247,29 +246,38 @@ def load_perf_sheet(_gc_client):
         print(f"VDT 데이터를 가져오지 못했습니다 (API 한도 또는 시트 오류): {e}")
         return pd.DataFrame()
 
-# 🚀 [컬럼 매핑 가이드 (B열부터 시작하므로 B=0, C=1...)]
-# F(견적_일) = 4, G(계약_일) = 5, H(견적_누적) = 6, I(계약_누적) = 7
-# J(계약율) = 8 (I/H로 별도 계산)
-# R(계약금액_누적) = 16
-# T(당월매출) = 18, U(전월매출) = 19
-# Y(익월매출) = 23
 def get_perf_metrics(perf_df, target_id, target_name):
-    default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+    default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'W': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
     
+    # 🚀 [오류 수정] 억, 만 등 한글 문자가 포함되어 있어도 정상 숫자로 변환하여 누락 방지!
     def clean_val(v):
-        if pd.isna(v) or v == "": return 0.0
-        try: return float(str(v).replace('%', '').replace(',', '').replace('원', '').strip())
+        if not v or pd.isna(v): return 0.0
+        v_str = str(v).replace('%', '').replace(',', '').replace('원', '').replace('건', '').strip()
+        multiplier = 1
+        if '억' in v_str:
+            v_str = v_str.replace('억', '')
+            multiplier = 100000000
+        elif '만' in v_str:
+            v_str = v_str.replace('만', '')
+            multiplier = 10000
+        v_str = re.sub(r'[^\d\.-]', '', v_str)
+        if not v_str: return 0.0
+        try: return float(v_str) * multiplier
         except: return 0.0
 
-    sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
+    sums = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'W': 0, 'Y': 0 }
 
+    # 🚀 [컬럼 인덱스 가이드 (B열부터 시작하므로 B=0, C=1...)]
+    # F(견적_일)=4, G(계약_일)=5, H(견적_누적)=6, I(계약_누적)=7
+    # R(계약금액_누적)=16, T(당월매출)=18, U(전월매출)=19, W(전월마감)=21, Y(익월매출)=23
     if target_id == "ALL":
         all_names = [v['name'] for v in HC_DB.values()]
         for _, row in perf_df.iterrows():
             vals = row.values
             if any(n in "".join([str(x).strip() for x in vals]) for n in all_names):
-                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
+                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['W'] += clean_val(vals[21]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
@@ -280,7 +288,8 @@ def get_perf_metrics(perf_df, target_id, target_name):
         for _, row in perf_df.iterrows():
             vals = row.values
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
-                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
+                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['W'] += clean_val(vals[21]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
@@ -290,25 +299,19 @@ def get_perf_metrics(perf_df, target_id, target_name):
         for _, row in perf_df.iterrows():
             vals = row.values
             if any(n in "".join([str(x).strip() for x in vals]) for n in dealer_names):
-                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7]); sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['Y'] += clean_val(vals[23])
+                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['W'] += clean_val(vals[21]); sums['Y'] += clean_val(vals[23])
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
         
     else:
-        # 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
         possible_ids = [str(target_id), target_name, str(int(target_id)) if str(target_id).isdigit() else ""]
         for _, row in perf_df.iterrows():
             vals = row.values
             row_str = "".join([str(x).strip() for x in vals])
             if any(pid in row_str for pid in possible_ids if pid):
-                sums['F'] += clean_val(vals[4])
-                sums['G'] += clean_val(vals[5])
-                sums['H'] += clean_val(vals[6])
-                sums['I'] += clean_val(vals[7])
-                sums['R'] += clean_val(vals[16])
-                sums['T'] += clean_val(vals[18])
-                sums['U'] += clean_val(vals[19])
-                sums['Y'] += clean_val(vals[23])
+                sums['F'] += clean_val(vals[4]); sums['G'] += clean_val(vals[5]); sums['H'] += clean_val(vals[6]); sums['I'] += clean_val(vals[7])
+                sums['R'] += clean_val(vals[16]); sums['T'] += clean_val(vals[18]); sums['U'] += clean_val(vals[19]); sums['W'] += clean_val(vals[21]); sums['Y'] += clean_val(vals[23])
                 
         if sums['H'] > 0: sums['J'] = (sums['I'] / sums['H']) * 100
         return sums
@@ -493,7 +496,7 @@ def fmt(n): return f"{int(round(n)):,}"
 
 F_str, G_str, H_str, I_str = fmt(metrics['F']), fmt(metrics['G']), fmt(metrics['H']), fmt(metrics['I'])
 J_str = f"{int(round(metrics['J']))}%" 
-R_str, Y_str = fmt(metrics['R']), fmt(metrics['Y'])
+R_str, Y_str, W_str = fmt(metrics['R']), fmt(metrics['Y']), fmt(metrics['W']) # 🚀 W열 추가
 T_str, U_str = fmt(metrics['T']), fmt(metrics['U'])
 
 growth = (metrics['T'] / metrics['U'] - 1) if metrics['U'] > 0 else 0
@@ -504,7 +507,8 @@ if metrics['U'] > 0:
     elif growth < 0: growth_html = f'<span style="color:#2563eb; font-size:14px; margin-left:4px;">(▼{g_pct}%)</span>'
     else: growth_html = f'<span style="color:#64748b; font-size:14px; margin-left:4px;">(-0%)</span>'
 
-combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html}'
+# 🚀 T(당월) / U(전월동일자) (증감) / W(전월마감, 녹색) 순으로 조합
+combined_val_str = f'<span style="color:#dc2626;">{T_str}</span> <span style="color:#94a3b8;">/</span> <span style="color:#2563eb;">{U_str}</span> {growth_html} <span style="color:#94a3b8;">/</span> <span style="color:#10b981;">{W_str}</span>'
 
 dash_html = f"""
 <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; border: 1px solid #cbd5e1; width: 100%;">
@@ -519,7 +523,8 @@ dash_html = f"""
         <div class="dash-card green"><div class="dash-title">계약건 (월누적)</div><div class="dash-value">{I_str}</div></div>
         <div class="dash-card purple"><div class="dash-title">계약율</div><div class="dash-value" style="color:#9333ea;">{J_str}</div></div>
         <div class="dash-card orange"><div class="dash-title">계약금액 (월누적)</div><div class="dash-value">{R_str}</div></div>
-        <div class="dash-card red"><div class="dash-title">당월 / 전월매출</div><div class="dash-value" style="font-size:15px;">{combined_val_str}</div></div>
+        <!-- 🚀 라벨 및 내용 변경 -->
+        <div class="dash-card red"><div class="dash-title" style="letter-spacing:-1px;">당월/전월(동일자)/전월마감</div><div class="dash-value" style="font-size:14px; word-break:keep-all;">{combined_val_str}</div></div>
         <div class="dash-card"><div class="dash-title">익월 매출</div><div class="dash-value">{Y_str}</div></div>
     </div>
 </div>
@@ -532,26 +537,21 @@ st.markdown("<br>", unsafe_allow_html=True)
 # -------------------------------------------------------------
 st.subheader("📊 월별 견적 관리 지표 요약 (최근 2개월)")
 
-# 1. 실제 데이터에서 변환 시도
 temp_dates = pd.to_datetime(my_df['상담일'], errors='coerce')
 valid_mask = temp_dates.notna()
 
-# 2. 유효한 데이터가 있으면 그걸 쓰고 없으면 빈 Series 생성
 if valid_mask.any():
     ym_series = temp_dates[valid_mask].dt.to_period('M')
 else:
     ym_series = pd.Series(dtype='period[M]')
 
-# 3. 🚀 데이터 기준이 아닌, '현재 접속한 오늘 날짜(today)' 기준으로 당월/전월 명시적 고정
 curr_period = pd.Period(today.strftime('%Y-%m'))
 prev_period = curr_period - 1
 
-# 무조건 현재 월(예: 9월), 그 이전 월(예: 8월) 리스트화
 ym_unique = [curr_period, prev_period]
 
 month_cols = st.columns(len(ym_unique))
 for idx, ym in enumerate(ym_unique):
-    # 해당 월의 데이터 필터링
     if valid_mask.any():
         m_df = my_df[valid_mask & (ym_series == ym)]
     else:
