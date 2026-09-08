@@ -244,11 +244,15 @@ def load_perf_sheet(_gc_client):
             return pd.DataFrame(safe_rows)
         return pd.DataFrame()
     except Exception as e:
-        # 캐시된 함수 내에서는 st.toast 사용 시 에러(CacheReplayClosureError)가 발생하므로 print로 처리
         print(f"VDT 데이터를 가져오지 못했습니다 (API 한도 또는 시트 오류): {e}")
         return pd.DataFrame()
 
-# 🚀 [수정 완벽 반영] 개인 조회 시 여러 줄 합산, ALL 검색 지원 로직
+# 🚀 [컬럼 매핑 가이드 (B열부터 시작하므로 B=0, C=1...)]
+# F(견적_일) = 4, G(계약_일) = 5, H(견적_누적) = 6, I(계약_누적) = 7
+# J(계약율) = 8 (I/H로 별도 계산)
+# R(계약금액_누적) = 16
+# T(당월매출) = 18, U(전월매출) = 19
+# Y(익월매출) = 23
 def get_perf_metrics(perf_df, target_id, target_name):
     default = { 'F': 0, 'G': 0, 'H': 0, 'I': 0, 'J': 0, 'R': 0, 'T': 0, 'U': 0, 'Y': 0 }
     if perf_df is None or perf_df.empty: return default
@@ -291,7 +295,7 @@ def get_perf_metrics(perf_df, target_id, target_name):
         return sums
         
     else:
-        # 🚀 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
+        # 개인 조회 시 이름이나 사번이 동일하면 여러 줄이라도 모두 더하도록(Sum) 변경
         possible_ids = [str(target_id), target_name, str(int(target_id)) if str(target_id).isdigit() else ""]
         for _, row in perf_df.iterrows():
             vals = row.values
