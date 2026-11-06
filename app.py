@@ -127,8 +127,3 @@ st.markdown("""
         color: #0369a1 !important;
     }
 </style>
-""", unsafe_allow_html=True)
-
-HC_DB = {
-    "00033448": {"name": "장재형", "dealer": "둔산"}, "00038617": {"name": "이대운", "dealer": "둔산"},
-    "00041
